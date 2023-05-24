@@ -1,0 +1,130 @@
+[gd_scene load_steps=6 format=2]
+
+[ext_resource path="res://scripts/main.gd" type="Script" id=1]
+[ext_resource path="res://scripts/console.gd" type="Script" id=2]
+[ext_resource path="res://gdnative.gdns" type="Script" id=3]
+[ext_resource path="res://icon.png" type="Texture" id=4]
+
+[sub_resource type="StyleBoxFlat" id=1]
+bg_color = Color( 0, 0, 0, 0.596078 )
+
+[node name="ROOT" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource( 1 )
+__meta__ = {
+"_edit_lock_": true
+}
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="."]
+margin_left = 34.0
+margin_top = 20.0
+margin_right = 172.0
+margin_bottom = 40.0
+custom_constants/separation = 11
+__meta__ = {
+"_edit_group_": true
+}
+
+[node name="BtnOpen" type="Button" parent="HBoxContainer2"]
+margin_right = 47.0
+margin_bottom = 20.0
+text = "Open"
+
+[node name="BtnSave" type="Button" parent="HBoxContainer2"]
+margin_left = 58.0
+margin_right = 99.0
+margin_bottom = 20.0
+disabled = true
+text = "Save"
+
+[node name="BtnClose" type="Button" parent="HBoxContainer2"]
+margin_left = 110.0
+margin_right = 157.0
+margin_bottom = 20.0
+disabled = true
+text = "Close"
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="."]
+margin_left = 358.0
+margin_top = 20.0
+margin_right = 496.0
+margin_bottom = 40.0
+custom_constants/separation = 11
+__meta__ = {
+"_edit_group_": true
+}
+
+[node name="BtnRun" type="Button" parent="HBoxContainer3"]
+margin_right = 36.0
+margin_bottom = 20.0
+disabled = true
+text = "Run"
+
+[node name="BtnStop" type="Button" parent="HBoxContainer3"]
+margin_left = 47.0
+margin_right = 87.0
+margin_bottom = 20.0
+disabled = true
+text = "Stop"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="."]
+margin_left = 608.0
+margin_top = 20.0
+margin_right = 746.0
+margin_bottom = 40.0
+custom_constants/separation = 11
+__meta__ = {
+"_edit_group_": true
+}
+
+[node name="BtnBreak" type="Button" parent="HBoxContainer"]
+margin_right = 48.0
+margin_bottom = 20.0
+disabled = true
+text = "Break"
+
+[node name="BtnBack" type="Button" parent="HBoxContainer"]
+margin_left = 59.0
+margin_right = 101.0
+margin_bottom = 20.0
+disabled = true
+text = "Back"
+
+[node name="BtnStep" type="Button" parent="HBoxContainer"]
+margin_left = 112.0
+margin_right = 152.0
+margin_bottom = 20.0
+disabled = true
+text = "Step"
+
+[node name="Console" type="RichTextLabel" parent="."]
+anchor_top = 1.0
+anchor_bottom = 1.0
+margin_top = -120.0
+margin_right = 503.0
+custom_styles/normal = SubResource( 1 )
+script = ExtResource( 2 )
+
+[node name="LogPrinter" type="RichTextLabel" parent="."]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -503.0
+margin_top = -120.0
+custom_styles/normal = SubResource( 1 )
+
+[node name="Sprite" type="Sprite" parent="."]
+position = Vector2( 164, 173 )
+texture = ExtResource( 4 )
+script = ExtResource( 3 )
+
+[connection signal="pressed" from="HBoxContainer2/BtnOpen" to="." method="_on_BtnOpen_pressed"]
+[connection signal="pressed" from="HBoxContainer2/BtnSave" to="." method="_on_BtnSave_pressed"]
+[connection signal="pressed" from="HBoxContainer2/BtnClose" to="." method="_on_BtnClose_pressed"]
+[connection signal="pressed" from="HBoxContainer3/BtnRun" to="." method="_on_BtnRun_pressed"]
+[connection signal="pressed" from="HBoxContainer3/BtnStop" to="." method="_on_BtnStop_pressed"]
+[connection signal="pressed" from="HBoxContainer/BtnBreak" to="." method="_on_BtnBreak_pressed"]
+[connection signal="pressed" from="HBoxContainer/BtnBack" to="." method="_on_BtnBack_pressed"]
+[connection signal="pressed" from="HBoxContainer/BtnStep" to="." method="_on_BtnStep_pressed"]

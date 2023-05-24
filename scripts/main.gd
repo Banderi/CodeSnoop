@@ -56,7 +56,7 @@ func _on_BtnOpen_pressed():
 
 #	Log.generic(null, "test")
 #	Shell.run("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe", $Console, funcref(self, "test"))
-#	Shell.run_sync("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe", $Console, true, true)
+	Shell.run_sync("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe", $Console, true, true)
 #	Shell.run("CMD.exe /C echo test", $Console, funcref(self, "test"))
 	pass # Replace with function body.
 func _on_BtnSave_pressed():

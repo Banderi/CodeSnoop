@@ -10,6 +10,9 @@ export_presets.cfg
 # Mono-specific ignores
 .mono/
 
+# CLion project files
+**/.idea/
+
 # Project ignores
 GDNative/godot-cpp
 GDNative/cmake-*

@@ -1,9 +1,8 @@
-[gd_scene load_steps=6 format=2]
+[gd_scene load_steps=5 format=2]
 
 [ext_resource path="res://scripts/main.gd" type="Script" id=1]
 [ext_resource path="res://scripts/console.gd" type="Script" id=2]
 [ext_resource path="res://gdnative.gdns" type="Script" id=3]
-[ext_resource path="res://icon.png" type="Texture" id=4]
 
 [sub_resource type="StyleBoxFlat" id=1]
 bg_color = Color( 0, 0, 0, 0.596078 )
@@ -98,13 +97,23 @@ margin_bottom = 20.0
 disabled = true
 text = "Step"
 
-[node name="Console" type="RichTextLabel" parent="."]
+[node name="Console3" type="RichTextLabel" parent="."]
 anchor_top = 1.0
 anchor_bottom = 1.0
 margin_top = -120.0
 margin_right = 503.0
 custom_styles/normal = SubResource( 1 )
 script = ExtResource( 2 )
+
+[node name="Console" type="RichTextLabel" parent="."]
+anchor_top = 1.0
+anchor_bottom = 1.0
+margin_left = 115.0
+margin_top = -406.0
+margin_right = 618.0
+margin_bottom = -286.0
+custom_styles/normal = SubResource( 1 )
+script = ExtResource( 3 )
 
 [node name="LogPrinter" type="RichTextLabel" parent="."]
 anchor_left = 1.0
@@ -114,11 +123,6 @@ anchor_bottom = 1.0
 margin_left = -503.0
 margin_top = -120.0
 custom_styles/normal = SubResource( 1 )
-
-[node name="Sprite" type="Sprite" parent="."]
-position = Vector2( 164, 173 )
-texture = ExtResource( 4 )
-script = ExtResource( 3 )
 
 [connection signal="pressed" from="HBoxContainer2/BtnOpen" to="." method="_on_BtnOpen_pressed"]
 [connection signal="pressed" from="HBoxContainer2/BtnSave" to="." method="_on_BtnSave_pressed"]

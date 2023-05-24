@@ -7,7 +7,8 @@ var shell_thread = null
 
 func send(s):
 	if shell_thread != null:
-		if GDNSHELL.send_line(str(s)):
+		if GDNSHELL.send_input(null):
+#		if GDNSHELL.send_line(str(s)):
 			print("success!")
 		else:
 			print("failure...")

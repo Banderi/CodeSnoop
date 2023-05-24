@@ -15,7 +15,7 @@ namespace godot {
 //        String APP_NAME = "Console";
         Array LOG;
 
-//        godot_signal test_signal;
+//        godot_signal console_update;
 
     public:
         static void _register_methods();
@@ -24,8 +24,7 @@ namespace godot {
         ~GDNShell();
 
         void spawn();
-//        bool step();
-        bool send_line(String s);
+        bool send_input(PoolByteArray bytes);
         void close();
 
         void _init(); // our initializer called by Godot

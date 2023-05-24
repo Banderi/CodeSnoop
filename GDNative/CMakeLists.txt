@@ -11,16 +11,12 @@ set(GODOT_HEADER_INCLUDES
 
 set(SOURCE_FILES
     library.cpp
-    gdlibrary.cpp
-    shell_handler.cpp)
+    gdlibrary.cpp)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
 
 add_library(GDN SHARED ${SOURCE_FILES})
 
-#find_library(LIB_GODOT godot-cpp.windows.debug.64)
-#target_link_directories(GDN PUBLIC ${PROJECT_SOURCE_DIR}/godot-cpp/bin)
-#target_link_libraries(GDN ${LIB_GODOT})
 target_link_libraries(GDN ${PROJECT_SOURCE_DIR}/godot-cpp/bin/libgodot-cpp.windows.debug.64.a)
 target_include_directories(GDN PRIVATE ${GODOT_HEADER_INCLUDES})
 

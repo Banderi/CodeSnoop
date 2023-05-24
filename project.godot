@@ -38,6 +38,7 @@ IO="*res://scripts/autoloads/IO.gd"
 Cursor="*res://scripts/autoloads/Cursor.gd"
 Debugger="*res://scripts/autoloads/Debugger.gd"
 Shell="*res://scripts/autoloads/Shell.gd"
+GDNShell="*res://scripts/autoloads/GDNShell.gd"
 
 [gui]
 

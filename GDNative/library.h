@@ -2,23 +2,31 @@
 #define GDNATIVE_LIBRARY_H
 
 #include <Godot.hpp>
-#include <RichTextLabel.hpp>
+#include <Node.hpp>
+//#include <RichTextLabel.hpp>
 
 namespace godot {
 
-    class GDNShell : public RichTextLabel {
-        GODOT_CLASS(GDNShell, RichTextLabel)
+    class GDNShell : public Node {
+        GODOT_CLASS(GDNShell, Node)
 
     private:
         float time_passed;
-        String APP_NAME = "Console";
+//        String APP_NAME = "Console";
         Array LOG;
+
+//        godot_signal test_signal;
 
     public:
         static void _register_methods();
 
         GDNShell();
         ~GDNShell();
+
+        void spawn();
+//        bool step();
+        bool send_line(String s);
+        void close();
 
         void _init(); // our initializer called by Godot
 

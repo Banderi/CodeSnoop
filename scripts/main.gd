@@ -52,11 +52,12 @@ func test(output):
 func _on_BtnOpen_pressed():
 
 #	var gdns = load("res://gdnative.gdns").new()
+	GDNShell.start()
 
 
 #	Log.generic(null, "test")
 #	Shell.run("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe", $Console, funcref(self, "test"))
-	Shell.run_sync("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe", $Console, true, true)
+#	Shell.run_sync("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe", $Console, true, true)
 #	Shell.run("CMD.exe /C echo test", $Console, funcref(self, "test"))
 	pass # Replace with function body.
 func _on_BtnSave_pressed():
@@ -81,3 +82,9 @@ func _on_BtnStep_pressed():
 func _on_Terminal_key_pressed(data, event):
 	print(str(data, " ", event))
 	pass # Replace with function body.
+
+
+func _on_LineEdit_text_entered(new_text):
+	print(new_text)
+	GDNShell.send(new_text)
+	$LineEdit.text = ""

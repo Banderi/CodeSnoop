@@ -1,8 +1,7 @@
-[gd_scene load_steps=5 format=2]
+[gd_scene load_steps=4 format=2]
 
 [ext_resource path="res://scripts/main.gd" type="Script" id=1]
 [ext_resource path="res://scripts/console.gd" type="Script" id=2]
-[ext_resource path="res://gdnative.gdns" type="Script" id=3]
 
 [sub_resource type="StyleBoxFlat" id=1]
 bg_color = Color( 0, 0, 0, 0.596078 )
@@ -97,7 +96,7 @@ margin_bottom = 20.0
 disabled = true
 text = "Step"
 
-[node name="Console3" type="RichTextLabel" parent="."]
+[node name="Console" type="RichTextLabel" parent="."]
 anchor_top = 1.0
 anchor_bottom = 1.0
 margin_top = -120.0
@@ -105,7 +104,8 @@ margin_right = 503.0
 custom_styles/normal = SubResource( 1 )
 script = ExtResource( 2 )
 
-[node name="Console" type="RichTextLabel" parent="."]
+[node name="Console_2" type="RichTextLabel" parent="."]
+visible = false
 anchor_top = 1.0
 anchor_bottom = 1.0
 margin_left = 115.0
@@ -113,7 +113,6 @@ margin_top = -406.0
 margin_right = 618.0
 margin_bottom = -286.0
 custom_styles/normal = SubResource( 1 )
-script = ExtResource( 3 )
 
 [node name="LogPrinter" type="RichTextLabel" parent="."]
 anchor_left = 1.0
@@ -124,6 +123,12 @@ margin_left = -503.0
 margin_top = -120.0
 custom_styles/normal = SubResource( 1 )
 
+[node name="LineEdit" type="LineEdit" parent="."]
+margin_left = 46.0
+margin_top = 125.0
+margin_right = 157.0
+margin_bottom = 149.0
+
 [connection signal="pressed" from="HBoxContainer2/BtnOpen" to="." method="_on_BtnOpen_pressed"]
 [connection signal="pressed" from="HBoxContainer2/BtnSave" to="." method="_on_BtnSave_pressed"]
 [connection signal="pressed" from="HBoxContainer2/BtnClose" to="." method="_on_BtnClose_pressed"]
@@ -132,3 +137,4 @@ custom_styles/normal = SubResource( 1 )
 [connection signal="pressed" from="HBoxContainer/BtnBreak" to="." method="_on_BtnBreak_pressed"]
 [connection signal="pressed" from="HBoxContainer/BtnBack" to="." method="_on_BtnBack_pressed"]
 [connection signal="pressed" from="HBoxContainer/BtnStep" to="." method="_on_BtnStep_pressed"]
+[connection signal="text_entered" from="LineEdit" to="." method="_on_LineEdit_text_entered"]

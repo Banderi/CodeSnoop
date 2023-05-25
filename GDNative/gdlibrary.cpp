@@ -1,6 +1,7 @@
 #include "library.h"
 
 extern "C" void GDN_EXPORT godot_gdnative_init(godot_gdnative_init_options *o) {
+    process_setup();
     godot::Godot::gdnative_init(o);
 }
 

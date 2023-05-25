@@ -4,29 +4,18 @@
 #include <Windows.h>
 #include <iostream>
 
-#include <RichTextLabel.hpp>
+#include <TextEdit.hpp>
+
 
 using namespace godot;
 
-RichTextLabel *console_node = nullptr;
+TextEdit *console_node = nullptr;
+HANDLE hJob;
+HANDLE hInputRead, hInputWrite, hOutputRead, hOutputWrite;
+PROCESS_INFORMATION pi;
+bool shouldTerminate = false;
 
-void GDNShell::_register_methods() {
-    register_method("_process", &GDNShell::_process);
-
-    register_method("spawn", &GDNShell::spawn);
-    register_method("send_string", &GDNShell::send_string);
-    register_method("kill", &GDNShell::kill);
-
-//    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);
-//    register_property<GDNShell, String>("APP_NAME", &GDNShell::APP_NAME, "Console");
-//    register_property<GDNShell, Array>("LOG", &GDNShell::LOG, Array());
-
-//    register_signal<GDNShell>("console_update", "output_line", GODOT_VARIANT_TYPE_STRING);
-    register_signal<GDNShell>("child_process_started");
-}
-
-GDNShell::GDNShell() {}
-GDNShell::~GDNShell() {}
+/////////////
 
 String to_str(int n) {
     return String(std::to_string(n).c_str());
@@ -39,18 +28,12 @@ void PrintErr(const char *err) {
     std::cerr << err << std::endl;
     ERR_PRINT(err);
 }
-
-/////////////
-
-HANDLE hInputRead, hInputWrite, hOutputRead, hOutputWrite;
-PROCESS_INFORMATION pi;
-
 void printOutput(char *buffer, int bytesRead) {
     // Process the output as needed
     std::cout.write(buffer, bytesRead);
     std::cout.flush();
 
-    console_node->add_text(buffer);
+    console_node->set_text(console_node->get_text() + buffer);
 }
 bool redirectStdout () {
     while (true) {
@@ -72,12 +55,25 @@ bool redirectStdout () {
     }
     return true;
 }
+// Control handler function for the parent process
+//BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
+//    if (dwCtrlType == CTRL_CLOSE_EVENT)
+//    {
+//        // Send a CTRL_BREAK_EVENT to the child process group
+//        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pi.dwProcessId);
+//    }
+//
+//    // Let the default handler handle the event as well
+//    return FALSE;
+//}
 
-bool shouldTerminate = false;
 void GDNShell::spawn(Variant node) {
 
+    // Register the control handler for the parent process
+//    SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+
     // Register console node
-    console_node = Object::cast_to<RichTextLabel>(node.operator Object*());
+    console_node = Object::cast_to<TextEdit>(node.operator Object*());
     if (console_node == nullptr) {
         PrintErr("Passed object is not a RichTextLabel!");
         return;
@@ -107,11 +103,26 @@ void GDNShell::spawn(Variant node) {
     si.wShowWindow = SW_HIDE;
 
     // Create the child process
-    if (!CreateProcess(NULL, path, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
+//    if (!CreateProcess(NULL, path, NULL, NULL, TRUE, CREATE_NEW_PROCESS_GROUP, NULL, NULL, &si, &pi))
+    if (!CreateProcess(NULL, path, NULL, NULL, TRUE, CREATE_SUSPENDED, NULL, NULL, &si, &pi))
     {
         PrintErr("Failed to create process.");
+//        CloseHandle(hJob);
         return;
     }
+
+    // Associate the child process with the job object
+    if (!AssignProcessToJobObject(hJob, pi.hProcess))
+    {
+        PrintErr("Failed to assign child process to job object.");
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+//        CloseHandle(hJob);
+        return;
+    }
+
+    // Resume the child process
+    ResumeThread(pi.hThread);
 
     // Close unnecessary pipe handles
     CloseHandle(hOutputWrite);
@@ -165,10 +176,8 @@ bool GDNShell::send_string(String string) {
     return true;
 }
 void GDNShell::kill() {
-    // Attempt to kill child process
-//    TerminateProcess(pi.hProcess, 0);
+    // Request process termination
     shouldTerminate = true;
-//    send_string("a");
 }
 
 void GDNShell::_init() {
@@ -202,3 +211,65 @@ void GDNShell::_process(float delta) {
 
 //    append_bbcode(String("a") + String("b"));
 }
+
+GDNShell::GDNShell() {}
+GDNShell::~GDNShell() {}
+
+void GDNShell::_register_methods() {
+    register_method("_process", &GDNShell::_process);
+
+    register_method("spawn", &GDNShell::spawn);
+    register_method("send_string", &GDNShell::send_string);
+    register_method("kill", &GDNShell::kill);
+
+//    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);
+//    register_property<GDNShell, String>("APP_NAME", &GDNShell::APP_NAME, "Console");
+//    register_property<GDNShell, Array>("LOG", &GDNShell::LOG, Array());
+
+//    register_signal<GDNShell>("console_update", "output_line", GODOT_VARIANT_TYPE_STRING);
+    register_signal<GDNShell>("child_process_started");
+    register_signal<GDNShell>("waiting_for_inputs");
+}
+
+/////////////
+
+void process_cleanup() {
+//    CloseHandle(pi.hProcess);
+//    CloseHandle(pi.hThread);
+    CloseHandle(hJob);
+    std::cerr << "Cleaning up..." << std::endl;
+}
+void process_exit() {
+    process_cleanup();
+}
+void process_unexpected_termination() {
+    process_cleanup();
+}
+bool process_setup() {
+
+    // Hook normal exiting functions
+    std::atexit(process_exit);
+    std::set_terminate(process_unexpected_termination);
+
+    // Create a job object
+    hJob = CreateJobObject(NULL, NULL);
+    if (hJob == NULL)
+    {
+        PrintErr("Failed to create job object.");
+        return false;
+    }
+
+    // Set the job object to terminate all processes when the job object is closed
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION jobInfo;
+    memset(&jobInfo, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+    jobInfo.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!SetInformationJobObject(hJob, JobObjectExtendedLimitInformation, &jobInfo, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION)))
+    {
+        PrintErr("Failed to set job object information.");
+        CloseHandle(hJob);
+        return false;
+    }
+
+    return true;
+}
+

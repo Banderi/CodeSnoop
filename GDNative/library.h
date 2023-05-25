@@ -11,11 +11,7 @@ namespace godot {
 
     private:
         float time_passed;
-//        String APP_NAME = "Console";
-//        RichTextLabel console_node;
         Array LOG;
-
-//        godot_signal console_update;
 
     public:
         static void _register_methods();
@@ -33,5 +29,7 @@ namespace godot {
     };
 
 }
+
+bool process_setup();
 
 #endif //GDNATIVE_LIBRARY_H

@@ -4,15 +4,21 @@
 #include <Windows.h>
 #include <iostream>
 
+#include <RichTextLabel.hpp>
+
 using namespace godot;
+
+RichTextLabel *console_node = nullptr;
 
 void GDNShell::_register_methods() {
     register_method("_process", &GDNShell::_process);
 
     register_method("spawn", &GDNShell::spawn);
+    register_method("send_string", &GDNShell::send_string);
     register_method("send_input", &GDNShell::send_input);
-    register_method("close", &GDNShell::close);
+    register_method("kill", &GDNShell::kill);
 
+//    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);
 //    register_property<GDNShell, String>("APP_NAME", &GDNShell::APP_NAME, "Console");
 //    register_property<GDNShell, Array>("LOG", &GDNShell::LOG, Array());
 
@@ -29,25 +35,39 @@ String to_str(float n) {
     return String(std::to_string(n).c_str());
 }
 
+void PrintErr(const char *err) {
+    std::cerr << err << std::endl;
+    ERR_PRINT(err);
+}
+
 /////////////
 
 HANDLE hInputRead, hInputWrite, hOutputRead, hOutputWrite;
-STARTUPINFO si = { sizeof(STARTUPINFO) };
 PROCESS_INFORMATION pi;
 
-char buffer[4096];
-DWORD bytesRead;
-void GDNShell::spawn() {
-    char *path = "E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe";
+bool shouldTerminate = false;
+void GDNShell::spawn(Variant node) {
+
+    // Register console node
+    console_node = Object::cast_to<RichTextLabel>(node.operator Object*());
+    if (console_node == nullptr) {
+        PrintErr("Passed object is not a RichTextLabel!");
+        return;
+    }
+
+    char *path = (char*)"E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe";
 
     // Create pipes for input and output
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
     if (!CreatePipe(&hOutputRead, &hOutputWrite, &sa, 0) ||
         !CreatePipe(&hInputRead, &hInputWrite, &sa, 0))
     {
-        std::cerr << "Failed to create pipes." << std::endl;
+        PrintErr("Failed to create pipes.");
         return;
     }
+
+
+    STARTUPINFO si = { sizeof(STARTUPINFO) };
 
     // Redirect input and output
     si.dwFlags |= STARTF_USESTDHANDLES;
@@ -62,7 +82,7 @@ void GDNShell::spawn() {
     // Create the child process
     if (!CreateProcess(NULL, path, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
     {
-        std::cerr << "Failed to create process." << std::endl;
+        PrintErr("Failed to create process.");
         return;
     }
 
@@ -71,6 +91,8 @@ void GDNShell::spawn() {
     CloseHandle(hInputRead);
 
     // Main loop
+    char buffer[4096];
+    DWORD bytesRead;
     while (true) {
         if (!ReadFile(hOutputRead, buffer, sizeof(buffer), &bytesRead, NULL) || bytesRead == 0)
             break;
@@ -79,36 +101,61 @@ void GDNShell::spawn() {
         std::cout.write(buffer, bytesRead);
         std::cout.flush();
 
+        console_node->add_text(buffer);
 
         // Check if the child process has exited
         DWORD childStatus;
         if (GetExitCodeProcess(pi.hProcess, &childStatus) && childStatus != STILL_ACTIVE)
             break;
-    }
-    close();
-}
-bool GDNShell::send_input(PoolByteArray bytes) {
 
-    std::string userInput = "3"; // testing
-    userInput += "\n";  // Add newline character to simulate pressing Enter
-
-    DWORD bytesWritten;
-    if (!WriteFile(hInputWrite, userInput.c_str(), static_cast<DWORD>(userInput.length()), &bytesWritten, NULL))
-    {
-        std::cerr << "Failed to write to child process." << std::endl;
-        close();
-        return false;
+        // Exit the loop manually
+        if (shouldTerminate)
+            break;
     }
 
-    return true;
-}
-void GDNShell::close() {
-    // Wait for the child process to exit
-    WaitForSingleObject(pi.hProcess, INFINITE);
+    if (shouldTerminate) {
+        // Manual termination requested, terminate the child process
+        TerminateProcess(pi.hProcess, 0);
+        shouldTerminate = false;
+    } else {
+        // Wait for the child process to exit
+        WaitForSingleObject(pi.hProcess, INFINITE);
+    }
 
     // Cleanup
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
+    console_node = nullptr;
+}
+bool GDNShell::send_string(String string) {
+    std::string userInput = std::string(string.alloc_c_string());
+    userInput += "\n";  // Add newline character to simulate pressing Enter
+    DWORD bytesWritten;
+    if (!WriteFile(hInputWrite, userInput.c_str(), static_cast<DWORD>(userInput.length()), &bytesWritten, NULL))
+    {
+        PrintErr("Failed to write to child process.");
+        return false;
+    }
+
+    std::cout << userInput.c_str() << std::endl;
+    return true;
+}
+bool GDNShell::send_input(int scancode) {
+//    std::string userInput(1, scancode);
+    char ch = (char)scancode;
+    DWORD bytesWritten;
+
+    if (!WriteFile(hInputWrite, &ch, sizeof(ch), &bytesWritten, NULL))
+    {
+        PrintErr("Failed to write to child process.");
+        return false;
+    }
+    std::cout << ch << std::endl;
+    return true;
+}
+void GDNShell::kill() {
+    // Attempt to kill child process
+    shouldTerminate = true;
 }
 
 void GDNShell::_init() {

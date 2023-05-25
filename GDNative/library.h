@@ -3,7 +3,6 @@
 
 #include <Godot.hpp>
 #include <Node.hpp>
-//#include <RichTextLabel.hpp>
 
 namespace godot {
 
@@ -13,6 +12,7 @@ namespace godot {
     private:
         float time_passed;
 //        String APP_NAME = "Console";
+//        RichTextLabel console_node;
         Array LOG;
 
 //        godot_signal console_update;
@@ -23,9 +23,10 @@ namespace godot {
         GDNShell();
         ~GDNShell();
 
-        void spawn();
-        bool send_input(PoolByteArray bytes);
-        void close();
+        void spawn(Variant node);
+        bool send_string(String string);
+        bool send_input(int scancode);
+        void kill();
 
         void _init(); // our initializer called by Godot
 

@@ -1,16 +1,9 @@
 extends Control
 
 
-# Declare member variables here. Examples:
-# var a = 2
-# var b = "text"
-
-
 # Called when the node enters the scene tree for the first time.
 func _ready():
-#	var gdns = load("res://gdnative.gdns").new()
-	pass # Replace with function body.
-
+	GDNShell.console_node = $Control/Console
 
 var logger_lines = 0
 var logger_autoscroll = true
@@ -26,33 +19,24 @@ func log_scroll():
 var console_lines = 0
 var console_autoscroll = true
 func console_catch():
-	if $Console.LOG.size() != console_lines:
-		$Console.bbcode_text = ""
-		console_lines = $Console.LOG.size()
-		for l in $Console.LOG:
-			var stripped = l.split("[Console]: ", false, 1)
-			$Console.bbcode_text += stripped[1] + "\n"
+	if GDNShell.console_node.get_line_count() != console_lines:
+#		GDNShell.console_node.bbcode_text = ""
+		console_lines = GDNShell.console_node.get_line_count()
+#		for l in $Console.LOG:
+#			var stripped = l.split("[Console]: ", false, 1)
+#			$Console.bbcode_text += stripped[1] + "\n"
 		if console_autoscroll:
-			$Console.scroll_to_line(console_lines-1)
+			GDNShell.console_node.scroll_to_line(console_lines-1)
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	log_scroll()
 	console_catch()
 
-func _input(event):
-	# TODO: keyboard shortcuts
-	pass
-
-
-func test(output):
-	print(output)
-	pass
-
 func _on_BtnOpen_pressed():
 
 #	var gdns = load("res://gdnative.gdns").new()
-	GDNShell.start()
+#	GDNShell.start()
 
 
 #	Log.generic(null, "test")
@@ -66,10 +50,9 @@ func _on_BtnClose_pressed():
 	pass # Replace with function body.
 
 func _on_BtnRun_pressed():
-
-	pass # Replace with function body.
+	GDNShell.start()
 func _on_BtnStop_pressed():
-	pass # Replace with function body.
+	GDNShell.stop()
 
 func _on_BtnBreak_pressed():
 	pass # Replace with function body.
@@ -78,13 +61,33 @@ func _on_BtnBack_pressed():
 func _on_BtnStep_pressed():
 	pass # Replace with function body.
 
+func _input(event):
 
-func _on_Terminal_key_pressed(data, event):
-	print(str(data, " ", event))
-	pass # Replace with function body.
+	if event is InputEventKey && event.pressed:
 
+		var scancode = event.get_scancode_with_modifiers()
+		var physical = event.get_physical_scancode_with_modifiers()
 
-func _on_LineEdit_text_entered(new_text):
-	print(new_text)
-	GDNShell.send(new_text)
-	$LineEdit.text = ""
+		var text = OS.get_scancode_string(scancode)
+		var unicode_strict = PoolByteArray([scancode]).get_string_from_utf8()
+		var as_text = event.as_text()
+		var unicode = event.unicode
+		var unicode_char = PoolByteArray([unicode]).get_string_from_utf8()
+
+#		$Console_2.text += unicode_char
+
+#		$Button.text = as_text
+		print(str(scancode, " (", text, ")"))
+
+#		GDNShell.send(event)
+
+var console_last_idx = 0
+func _on_ConsoleInput_text_entered(text):
+	if text != "":
+		GDNShell.console_node.text += str(text,"\n")
+		GDNShell.send_string(text)
+		$Control/ConsoleInput.clear()
+
+func _on_ConsoleInput_gui_input(event):
+	if Input.is_action_just_pressed("clear_console"):
+		GDNShell.console_node.clear()

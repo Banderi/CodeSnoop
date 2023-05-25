@@ -25,7 +25,6 @@ namespace godot {
 
         void spawn(Variant node);
         bool send_string(String string);
-        bool send_input(int scancode);
         void kill();
 
         void _init(); // our initializer called by Godot

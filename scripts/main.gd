@@ -3,7 +3,12 @@ extends Control
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	GDNShell.console_node = $Control/Console
+	GDNShell.root_node = self
+	GDNShell.terminal_node = $Console/Terminal
+	$LogPrinter.text = ""
+	GDNShell.terminal_node.clear()
+	$Console/Input.clear()
+	$Console/Input.editable = false
 
 var logger_lines = 0
 var logger_autoscroll = true
@@ -19,19 +24,18 @@ func log_scroll():
 var console_lines = 0
 var console_autoscroll = true
 func console_catch():
-	if GDNShell.console_node.get_line_count() != console_lines:
-#		GDNShell.console_node.bbcode_text = ""
-		console_lines = GDNShell.console_node.get_line_count()
-#		for l in $Console.LOG:
-#			var stripped = l.split("[Console]: ", false, 1)
-#			$Console.bbcode_text += stripped[1] + "\n"
+	if GDNShell.terminal_node.get_line_count() != console_lines:
+		console_lines = GDNShell.terminal_node.get_line_count()
 		if console_autoscroll:
-			GDNShell.console_node.scroll_to_line(console_lines-1)
+			GDNShell.terminal_node.scroll_to_line(console_lines-1)
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	log_scroll()
 	console_catch()
+
+func _input(event):
+	pass
 
 func _on_BtnOpen_pressed():
 
@@ -54,6 +58,11 @@ func _on_BtnRun_pressed():
 func _on_BtnStop_pressed():
 	GDNShell.stop()
 
+func _child_process_started():
+	$Console/Input.editable = true
+func _child_process_stopped():
+	$Console/Input.editable = false
+
 func _on_BtnBreak_pressed():
 	pass # Replace with function body.
 func _on_BtnBack_pressed():
@@ -61,33 +70,13 @@ func _on_BtnBack_pressed():
 func _on_BtnStep_pressed():
 	pass # Replace with function body.
 
-func _input(event):
-
-	if event is InputEventKey && event.pressed:
-
-		var scancode = event.get_scancode_with_modifiers()
-		var physical = event.get_physical_scancode_with_modifiers()
-
-		var text = OS.get_scancode_string(scancode)
-		var unicode_strict = PoolByteArray([scancode]).get_string_from_utf8()
-		var as_text = event.as_text()
-		var unicode = event.unicode
-		var unicode_char = PoolByteArray([unicode]).get_string_from_utf8()
-
-#		$Console_2.text += unicode_char
-
-#		$Button.text = as_text
-		print(str(scancode, " (", text, ")"))
-
-#		GDNShell.send(event)
 
 var console_last_idx = 0
 func _on_ConsoleInput_text_entered(text):
-	if text != "":
-		GDNShell.console_node.text += str(text,"\n")
-		GDNShell.send_string(text)
-		$Control/ConsoleInput.clear()
-
+#	if text != "":
+	GDNShell.terminal_node.text += str(text,"\n")
+	GDNShell.send_string(text)
+	$Console/Input.clear()
 func _on_ConsoleInput_gui_input(event):
 	if Input.is_action_just_pressed("clear_console"):
-		GDNShell.console_node.clear()
+		GDNShell.terminal_node.clear()

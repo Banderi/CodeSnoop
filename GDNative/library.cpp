@@ -15,7 +15,6 @@ void GDNShell::_register_methods() {
 
     register_method("spawn", &GDNShell::spawn);
     register_method("send_string", &GDNShell::send_string);
-    register_method("send_input", &GDNShell::send_input);
     register_method("kill", &GDNShell::kill);
 
 //    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);
@@ -23,6 +22,7 @@ void GDNShell::_register_methods() {
 //    register_property<GDNShell, Array>("LOG", &GDNShell::LOG, Array());
 
 //    register_signal<GDNShell>("console_update", "output_line", GODOT_VARIANT_TYPE_STRING);
+    register_signal<GDNShell>("child_process_started");
 }
 
 GDNShell::GDNShell() {}
@@ -45,6 +45,34 @@ void PrintErr(const char *err) {
 HANDLE hInputRead, hInputWrite, hOutputRead, hOutputWrite;
 PROCESS_INFORMATION pi;
 
+void printOutput(char *buffer, int bytesRead) {
+    // Process the output as needed
+    std::cout.write(buffer, bytesRead);
+    std::cout.flush();
+
+    console_node->add_text(buffer);
+}
+bool redirectStdout () {
+    while (true) {
+        DWORD dwAvail = 0;
+        if (!PeekNamedPipe(hOutputRead, NULL, 0, NULL, &dwAvail, NULL))
+            break; // error, the child process might have ended
+
+        if (!dwAvail) // no data available, return
+            return false;
+
+        char buffer[4096];
+        DWORD bytesRead = 0;
+
+        if (!ReadFile(hOutputRead, buffer, sizeof(buffer), &bytesRead, NULL) || bytesRead == 0)
+            break; // error, the child process might have ended
+
+        buffer[bytesRead] = 0;
+        printOutput(buffer, bytesRead); // display the output
+    }
+    return true;
+}
+
 bool shouldTerminate = false;
 void GDNShell::spawn(Variant node) {
 
@@ -65,7 +93,6 @@ void GDNShell::spawn(Variant node) {
         PrintErr("Failed to create pipes.");
         return;
     }
-
 
     STARTUPINFO si = { sizeof(STARTUPINFO) };
 
@@ -90,18 +117,15 @@ void GDNShell::spawn(Variant node) {
     CloseHandle(hOutputWrite);
     CloseHandle(hInputRead);
 
+    emit_signal("child_process_started");
+
     // Main loop
     char buffer[4096];
     DWORD bytesRead;
     while (true) {
-        if (!ReadFile(hOutputRead, buffer, sizeof(buffer), &bytesRead, NULL) || bytesRead == 0)
-            break;
 
-        // Process the output as needed
-        std::cout.write(buffer, bytesRead);
-        std::cout.flush();
-
-        console_node->add_text(buffer);
+        // Message queue
+        bool r = redirectStdout();
 
         // Check if the child process has exited
         DWORD childStatus;
@@ -140,22 +164,11 @@ bool GDNShell::send_string(String string) {
     std::cout << userInput.c_str() << std::endl;
     return true;
 }
-bool GDNShell::send_input(int scancode) {
-//    std::string userInput(1, scancode);
-    char ch = (char)scancode;
-    DWORD bytesWritten;
-
-    if (!WriteFile(hInputWrite, &ch, sizeof(ch), &bytesWritten, NULL))
-    {
-        PrintErr("Failed to write to child process.");
-        return false;
-    }
-    std::cout << ch << std::endl;
-    return true;
-}
 void GDNShell::kill() {
     // Attempt to kill child process
+//    TerminateProcess(pi.hProcess, 0);
     shouldTerminate = true;
+//    send_string("a");
 }
 
 void GDNShell::_init() {

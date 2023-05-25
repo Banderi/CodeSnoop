@@ -104,7 +104,7 @@ margin_bottom = 20.0
 disabled = true
 text = "Step"
 
-[node name="Control" type="Control" parent="."]
+[node name="Console" type="Control" parent="."]
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -116,7 +116,7 @@ __meta__ = {
 "_edit_group_": true
 }
 
-[node name="Console" type="RichTextLabel" parent="Control"]
+[node name="Terminal" type="RichTextLabel" parent="Console"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_bottom = -23.0
@@ -142,7 +142,7 @@ void GDNShell::_register_methods() {
 selection_enabled = true
 script = ExtResource( 2 )
 
-[node name="ConsoleInput" type="LineEdit" parent="Control"]
+[node name="Input" type="LineEdit" parent="Console"]
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -153,13 +153,31 @@ text = "test gdb --arrccasge sfwf -i2"
 caret_blink = true
 
 [node name="LogPrinter" type="RichTextLabel" parent="."]
-anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = -503.0
-margin_top = -120.0
+margin_left = 850.0
+margin_top = -254.0
+margin_right = -10.0
+margin_bottom = -9.0
+custom_fonts/normal_font = ExtResource( 4 )
 custom_styles/normal = SubResource( 1 )
+text = "RichTextLabel *console_node = nullptr;
+
+void GDNShell::_register_methods() {
+    register_method(\"_process\", &GDNShell::_process);
+
+    register_method(\"spawn\", &GDNShell::spawn);
+    register_method(\"send_string\", &GDNShell::send_string);
+    register_method(\"send_input\", &GDNShell::send_input);
+    register_method(\"kill\", &GDNShell::kill);
+
+//    register_property<GDNShell, RichTextLabel>(\"console_node\", &GDNShell::console_node, empty_node);
+//    register_property<GDNShell, String>(\"APP_NAME\", &GDNShell::APP_NAME, \"Console\");
+//    register_property<GDNShell, Array>(\"LOG\", &GDNShell::LOG, Array());
+
+//    register_signal<GDNShell>(\"console_update\", \"output_line\", GODOT_VARIANT_TYPE_STRING);
+}"
 
 [connection signal="pressed" from="HBoxContainer2/BtnOpen" to="." method="_on_BtnOpen_pressed"]
 [connection signal="pressed" from="HBoxContainer2/BtnSave" to="." method="_on_BtnSave_pressed"]
@@ -169,5 +187,5 @@ custom_styles/normal = SubResource( 1 )
 [connection signal="pressed" from="HBoxContainer/BtnBreak" to="." method="_on_BtnBreak_pressed"]
 [connection signal="pressed" from="HBoxContainer/BtnBack" to="." method="_on_BtnBack_pressed"]
 [connection signal="pressed" from="HBoxContainer/BtnStep" to="." method="_on_BtnStep_pressed"]
-[connection signal="gui_input" from="Control/ConsoleInput" to="." method="_on_ConsoleInput_gui_input"]
-[connection signal="text_entered" from="Control/ConsoleInput" to="." method="_on_ConsoleInput_text_entered"]
+[connection signal="gui_input" from="Console/Input" to="." method="_on_ConsoleInput_gui_input"]
+[connection signal="text_entered" from="Console/Input" to="." method="_on_ConsoleInput_text_entered"]

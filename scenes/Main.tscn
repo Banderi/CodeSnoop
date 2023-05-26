@@ -134,6 +134,7 @@ margin_bottom = -9.0
 [node name="Terminal" type="RichTextLabel" parent="Console"]
 anchor_right = 1.0
 anchor_bottom = 1.0
+margin_bottom = -27.0
 focus_mode = 2
 custom_fonts/normal_font = ExtResource( 4 )
 custom_styles/focus = SubResource( 3 )
@@ -166,26 +167,8 @@ margin_bottom = 331.0
 custom_fonts/font = ExtResource( 4 )
 text = "teasat"
 
-[node name="Input" type="LineEdit" parent="Console/Terminal"]
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-margin_left = 4.0
-margin_top = -33.0
-margin_right = -19.0
-margin_bottom = -6.0
-custom_fonts/font = ExtResource( 3 )
-custom_styles/normal = SubResource( 4 )
-text = "test gdb --arrccasge sfwf -i2"
-caret_blink = true
-
-[node name="VScrollBar" type="VScrollBar" parent="Console/Terminal"]
-anchor_left = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-margin_left = -12.0
-
 [node name="SpinBox" type="SpinBox" parent="Console/Terminal"]
+visible = false
 margin_left = 743.0
 margin_top = 4.0
 margin_right = 817.0
@@ -195,11 +178,32 @@ value = 4.0
 rounded = true
 
 [node name="CheckBox" type="CheckBox" parent="Console/Terminal"]
+visible = false
 margin_left = 779.0
 margin_top = 34.0
 margin_right = 803.0
 margin_bottom = 58.0
 pressed = true
+
+[node name="VScrollBar" type="VScrollBar" parent="Console"]
+visible = false
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -12.0
+max_value = 284.0
+step = 1.0
+page = 218.0
+value = 66.0
+
+[node name="Input" type="LineEdit" parent="Console"]
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_top = -27.0
+custom_fonts/font = ExtResource( 3 )
+custom_styles/normal = SubResource( 4 )
+caret_blink = true
 
 [node name="LogPrinter" type="RichTextLabel" parent="."]
 anchor_top = 1.0
@@ -245,4 +249,4 @@ text = "90 FPS"
 [connection signal="pressed" from="HBoxContainer/BtnBreak" to="." method="_on_BtnBreak_pressed"]
 [connection signal="pressed" from="HBoxContainer/BtnBack" to="." method="_on_BtnBack_pressed"]
 [connection signal="pressed" from="HBoxContainer/BtnStep" to="." method="_on_BtnStep_pressed"]
-[connection signal="text_entered" from="Console/Terminal/Input" to="Console/Terminal" method="_on_Input_text_entered"]
+[connection signal="text_entered" from="Console/Input" to="." method="_on_Input_text_entered"]

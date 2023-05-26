@@ -209,7 +209,7 @@ bool GDNShell::send_string(String string) {
         return false;
     }
 
-    std::cout << s << std::endl;
+    printOutput(s, strlen(s));
     return true;
 }
 void GDNShell::kill() {

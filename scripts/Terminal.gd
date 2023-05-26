@@ -25,6 +25,4 @@ func _process(delta):
 func _input(event):
 	if Input.is_action_just_pressed("debug_step"):
 		DEBUG = !DEBUG
-func _on_Input_text_entered(new_text):
-	GDNShell.send_string(new_text)
-	$Input.clear()
+

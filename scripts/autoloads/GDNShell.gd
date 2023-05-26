@@ -57,6 +57,7 @@ func stop():
 		GDNSHELL.kill()
 	if shell_thread.is_active():
 		shell_thread.wait_to_finish()
+		is_stopping = false
 	else:
 		Log.generic(self, "No process is running!")
 

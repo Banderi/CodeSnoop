@@ -30,6 +30,7 @@ func _process(delta):
 func _input(event):
 	if Input.is_action_just_pressed("debug_start"):
 		GDNShell.start()
+		$Console/Input.grab_focus()
 	if Input.is_action_just_pressed("debug_stop"):
 		GDNShell.stop()
 	if Input.is_action_just_pressed("clear_console"):
@@ -62,3 +63,8 @@ func _on_BtnBack_pressed():
 	pass # Replace with function body.
 func _on_BtnStep_pressed():
 	pass # Replace with function body.
+
+
+func _on_Input_text_entered(new_text):
+	GDNShell.send_string(new_text)
+	$Console/Input.clear()

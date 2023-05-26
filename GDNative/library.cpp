@@ -19,6 +19,8 @@ bool shouldTerminate = false;
 std::string history;
 std::vector<int> history_linebreaks;
 std::mutex buffer_mutex;
+int history_last_fetched_pos;
+int history_size;
 
 std::mutex termination_mutex;
 
@@ -67,6 +69,7 @@ void printOutput(char *buffer, DWORD bytesRead) {
 
     // Push string into history
     history += formatted;
+    history_size += formatted.size();
 }
 bool redirectStdout () {
     while (true) {
@@ -92,6 +95,8 @@ void clear_history() {
     std::lock_guard<std::mutex> guard(buffer_mutex);
     history.clear();
     history_linebreaks.clear();
+    history_last_fetched_pos = 0;
+    history_size = 0;
 }
 
 void GDNShell::spawn(String path) {
@@ -149,8 +154,6 @@ void GDNShell::spawn(String path) {
     // Clear previous terminal history and raise signal
     emit_signal("child_process_started");
     simpleDebugPrint("GDNShell::spawn 6");
-    clear_history();
-    simpleDebugPrint("GDNShell::spawn 7");
 
     // Main loop
     char buffer[4096];
@@ -246,6 +249,17 @@ String GDNShell::fetch_at_line(int _line, int _size) {
     }
     return "";
 }
+String GDNShell::fetch_since_last_time() {
+    std::lock_guard<std::mutex> guard(buffer_mutex);
+    if (history_size != history_last_fetched_pos) {
+        int n = history_size - history_last_fetched_pos;
+        std::string str = history.substr(history_last_fetched_pos, n);
+        auto buf = str.c_str();
+        history_last_fetched_pos = history_size;
+        return buf;
+    }
+    return "";
+}
 void GDNShell::clear() {
     clear_history();
 }
@@ -253,33 +267,9 @@ void GDNShell::clear() {
 void GDNShell::_init() {
     // initialize any variables here
     time_passed = 0.0;
-//    APP_NAME = "Console";
-
-//    shell_spawn("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe");
-//    while (true) {
-//        if (!shell_step())
-//            break;
-//    }
-//    shell_close();
-//    spawn_child("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe");
 }
 void GDNShell::_process(float delta) {
     time_passed += delta;
-
-//    Vector2 new_position = Vector2(10.0 + (10.0 * sin(time_passed * 2.0)), 10.0 + (10.0 * cos(time_passed * 1.5)));
-
-//    set_position(new_position);
-//    set_text(to_str(time_passed));
-
-//    auto ss = PoolStringArray();
-//    ss.push_back("a");
-//    ss.push_back("b");
-//    ss.push_back("c");
-
-//    String s = "a";
-//    s += "b";
-
-//    append_bbcode(String("a") + String("b"));
 }
 
 GDNShell::GDNShell() = default;
@@ -294,6 +284,7 @@ void GDNShell::_register_methods() {
 
     register_method("get_lines", &GDNShell::get_lines);
     register_method("fetch_at_line", &GDNShell::fetch_at_line);
+    register_method("fetch_since_last_time", &GDNShell::fetch_since_last_time);
     register_method("clear", &GDNShell::clear);
 
 //    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);

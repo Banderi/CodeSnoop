@@ -25,6 +25,7 @@ namespace godot {
 
         int get_lines();
         String fetch_at_line(int line, int size);
+        String fetch_since_last_time();
         void clear();
 
         void _init(); // our initializer called by Godot

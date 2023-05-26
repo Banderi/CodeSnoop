@@ -6,7 +6,7 @@ var LOG_ERRORS = []
 
 var LOG_CHANGED = false
 
-const MAX_LINES_IN_CONSOLE = 5
+const MAX_LINES_IN_CONSOLE = 200
 func limit_array(arr, limit = MAX_LINES_IN_CONSOLE):
 	if arr.size() > limit:
 		arr.pop_front()

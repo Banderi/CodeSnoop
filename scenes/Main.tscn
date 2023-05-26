@@ -134,6 +134,7 @@ margin_bottom = -9.0
 [node name="Terminal" type="RichTextLabel" parent="Console"]
 anchor_right = 1.0
 anchor_bottom = 1.0
+focus_mode = 2
 custom_fonts/normal_font = ExtResource( 4 )
 custom_styles/focus = SubResource( 3 )
 custom_styles/normal = SubResource( 2 )
@@ -153,15 +154,15 @@ void GDNShell::_register_methods() {
 
 //    register_signal<GDNShell>(\"console_update\", \"output_line\", GODOT_VARIANT_TYPE_STRING);
 }"
-scroll_active = false
+scroll_following = true
+selection_enabled = true
 script = ExtResource( 5 )
 
 [node name="Label" type="Label" parent="Console/Terminal"]
-visible = false
-margin_left = 649.0
-margin_top = 6.0
-margin_right = 1221.0
-margin_bottom = 98.0
+margin_left = 466.0
+margin_top = 11.0
+margin_right = 1340.0
+margin_bottom = 331.0
 custom_fonts/font = ExtResource( 4 )
 text = "teasat"
 
@@ -208,6 +209,7 @@ margin_left = 850.0
 margin_top = -254.0
 margin_right = -10.0
 margin_bottom = -9.0
+focus_mode = 2
 custom_fonts/normal_font = ExtResource( 4 )
 custom_styles/normal = SubResource( 1 )
 text = "RichTextLabel *console_node = nullptr;
@@ -226,6 +228,14 @@ void GDNShell::_register_methods() {
 
 //    register_signal<GDNShell>(\"console_update\", \"output_line\", GODOT_VARIANT_TYPE_STRING);
 }"
+selection_enabled = true
+
+[node name="Label" type="Label" parent="."]
+margin_left = 19.0
+margin_top = 703.0
+margin_right = 125.0
+margin_bottom = 752.0
+text = "90 FPS"
 
 [connection signal="pressed" from="HBoxContainer2/BtnOpen" to="." method="_on_BtnOpen_pressed"]
 [connection signal="pressed" from="HBoxContainer2/BtnSave" to="." method="_on_BtnSave_pressed"]

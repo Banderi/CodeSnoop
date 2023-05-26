@@ -7,7 +7,7 @@ func _ready():
 	GDNShell.terminal_node = $Console/Terminal
 	GDNShell.GDN_INIT()
 	$LogPrinter.text = ""
-#	GDNShell.clear()
+	GDNShell.clear()
 #	$Console/Input.editable = false
 
 var logger_lines = 0
@@ -25,6 +25,7 @@ func log_scroll():
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	log_scroll()
+	$Label.text = str(Engine.get_frames_per_second())
 
 func _input(event):
 	if Input.is_action_just_pressed("debug_start"):

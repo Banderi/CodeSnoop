@@ -5,17 +5,22 @@
 #include <iostream>
 #include <mutex>
 
-#include "TextEdit.hpp"
-
+#include "RichTextLabel.hpp"
+#include "TextHistory"
 
 using namespace godot;
 
-//Node *console_obj = nullptr;
-//TextEdit *console_node = nullptr;
+//RichTextLabel *console_node = nullptr;
 HANDLE hJob;
 HANDLE hInputRead, hInputWrite, hOutputRead, hOutputWrite;
 PROCESS_INFORMATION pi;
 bool shouldTerminate = false;
+
+std::string history;
+std::vector<int> history_linebreaks;
+std::mutex buffer_mutex;
+
+std::mutex termination_mutex;
 
 /////////////
 
@@ -26,26 +31,42 @@ String to_str(float n) {
     return {std::to_string(n).c_str()};
 }
 
-std::string buffered_cout;
-std::mutex buffer_mutex;
-//bool to_flush = false;
-//DWORD bytes_synced = 0;
-
+void simpleDebugPrint(const char *str) {
+    std::cout << str << std::endl;
+}
 void PrintErr(const char *err) {
     std::cerr << err << std::endl;
     ERR_PRINT(err);
 }
 void printOutput(char *buffer, DWORD bytesRead) {
-    // Process the output as needed
-    std::cout.write(buffer, bytesRead);
+    // Convert CRLF to LF
+    std::string formatted = buffer;
+    std::string::size_type pos = 0;
+    while ((pos = formatted.find("\r\n", pos)) != std::string::npos)
+        formatted.replace(pos, 1, "");
+
+    // Further process string
+    // TODO
+
+    // Flush to local std::cout as well
+    std::cout << formatted.c_str();
     std::cout.flush();
 
+    // Extract and record linebreaks
+    int prev_linebreak = 0;
     std::lock_guard<std::mutex> guard(buffer_mutex);
-    buffered_cout += buffer;
+    if (!history_linebreaks.empty())
+        prev_linebreak = history_linebreaks.at(history_linebreaks.size() - 1);
+    else
+        history_linebreaks.push_back(0);
+    pos = 0;
+    while ((pos = formatted.find("\n", pos)) != std::string::npos) {
+        history_linebreaks.push_back(pos);
+        pos += 1;
+    }
 
-//    console_node->set_text(console_node->get_text() + buffer);
-//    console_node->call("_receive_text", String(buffer), (int)bytesRead);
-//    console_node->call_deferred("_receive_text", String(buffer), (int)bytesRead);
+    // Push string into history
+    history += formatted;
 }
 bool redirectStdout () {
     while (true) {
@@ -67,15 +88,15 @@ bool redirectStdout () {
     }
     return true;
 }
+void clear_history() {
+    std::lock_guard<std::mutex> guard(buffer_mutex);
+    history.clear();
+    history_linebreaks.clear();
+}
 
-void GDNShell::spawn(Variant node, String path) {
-
-    // Register console node
-//    if (!Object::cast_to<Node>(node)->is_class("TextEdit")) {
-//        PrintErr("Passed object is not a valid TextEdit terminal!");
-//        return;
-//    }
-//    console_node = Object::cast_to<TextEdit>(node);
+void GDNShell::spawn(String path) {
+    simpleDebugPrint("--> GDNShell::spawn CALL");
+    simpleDebugPrint("GDNShell::spawn 1");
 
     // Create pipes for input and output
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
@@ -87,6 +108,7 @@ void GDNShell::spawn(Variant node, String path) {
     }
 
     STARTUPINFO si = { sizeof(STARTUPINFO) };
+    simpleDebugPrint("GDNShell::spawn 2");
 
     // Redirect input and output
     si.dwFlags |= STARTF_USESTDHANDLES;
@@ -104,6 +126,7 @@ void GDNShell::spawn(Variant node, String path) {
         PrintErr("Failed to create process.");
         return;
     }
+    simpleDebugPrint("GDNShell::spawn 3");
 
     // Associate the child process with the job object
     if (!AssignProcessToJobObject(hJob, pi.hProcess))
@@ -113,6 +136,7 @@ void GDNShell::spawn(Variant node, String path) {
         CloseHandle(pi.hThread);
         return;
     }
+    simpleDebugPrint("GDNShell::spawn 4");
 
     // Resume the child process
     ResumeThread(pi.hThread);
@@ -120,13 +144,21 @@ void GDNShell::spawn(Variant node, String path) {
     // Close unnecessary pipe handles
     CloseHandle(hOutputWrite);
     CloseHandle(hInputRead);
+    simpleDebugPrint("GDNShell::spawn 5");
 
+    // Clear previous terminal history and raise signal
     emit_signal("child_process_started");
+    simpleDebugPrint("GDNShell::spawn 6");
+    clear_history();
+    simpleDebugPrint("GDNShell::spawn 7");
 
     // Main loop
     char buffer[4096];
     DWORD bytesRead;
+    simpleDebugPrint("----> GDNShell::spawn LOOP ENTER");
     while (true) {
+        // Lock thread until termination is done
+        std::lock_guard<std::mutex> guard(termination_mutex);
 
         // Message queue
         bool r = redirectStdout();
@@ -137,34 +169,36 @@ void GDNShell::spawn(Variant node, String path) {
             break;
 
         // Exit the loop manually
-        if (shouldTerminate)
+        if (shouldTerminate) {
+            simpleDebugPrint("shouldTerminate is TRUE");
             break;
+        }
     }
+    simpleDebugPrint("<---- GDNShell::spawn LOOP EXIT");
 
     if (shouldTerminate) {
         // Manual termination requested, terminate the child process
+        DWORD childStatus;
+        if (GetExitCodeProcess(pi.hProcess, &childStatus) && childStatus != STILL_ACTIVE)
+            simpleDebugPrint("GetExitCodeProcess gave NOT STILL_ACTIVE");
+        else
+            simpleDebugPrint("GetExitCodeProcess gave STILL_ACTIVE");
         TerminateProcess(pi.hProcess, 0);
         shouldTerminate = false;
     } else {
         // Wait for the child process to exit
         WaitForSingleObject(pi.hProcess, INFINITE);
     }
+    simpleDebugPrint("GDNShell::spawn 8");
 
     // Cleanup
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
-//    console_node = nullptr;
+    emit_signal("child_process_stopped");
+    simpleDebugPrint("<-- GDNShell::spawn RET");
 }
 bool GDNShell::send_string(String string) {
     char *s = string.alloc_c_string();
-//    auto i = strlen(s);
-//    std::string userInput = std::string(string.alloc_c_string());
-//    userInput += "\n";  // Add newline character to simulate pressing Enter
-
-
-
-//    auto s = (std::string(string.alloc_c_string()) + "\n").c_str();
-
     DWORD bytesWritten;
     if (!WriteFile(hInputWrite, s, static_cast<DWORD>(strlen(s)), &bytesWritten, nullptr))
     {
@@ -176,15 +210,44 @@ bool GDNShell::send_string(String string) {
     return true;
 }
 void GDNShell::kill() {
+    simpleDebugPrint("--> GDNShell::kill CALL");
     // Request process termination
+    std::lock_guard<std::mutex> guard(termination_mutex);
     shouldTerminate = true;
+    simpleDebugPrint("<-- GDNShell::kill RET");
 }
 
-String GDNShell::fetch() {
+int GDNShell::get_lines() {
     std::lock_guard<std::mutex> guard(buffer_mutex);
-    String str = buffered_cout.c_str();
-    buffered_cout.clear();
-    return str;
+    return history_linebreaks.size();
+}
+String GDNShell::fetch_at_line(int _line, int _size) {
+    std::lock_guard<std::mutex> guard(buffer_mutex);
+    int LASTLINE = history_linebreaks.size();
+    int STARTLINE = _line;
+    if (_line == -1)
+        STARTLINE = LASTLINE - _size;
+    int ENDLINE = STARTLINE + _size;
+    if (STARTLINE < 0)
+        STARTLINE = 0;
+
+    if (STARTLINE >= LASTLINE)
+        return "";
+    else {
+        int s_start = history_linebreaks.at(STARTLINE);
+        int s_end;
+        if (ENDLINE >= LASTLINE) {
+            s_end = history.size();
+        } else
+            s_end = history_linebreaks.at(ENDLINE);
+        if (s_start != 0)
+            s_start += 1;
+        return history.substr(s_start, s_end - s_start).c_str();
+    }
+    return "";
+}
+void GDNShell::clear() {
+    clear_history();
 }
 
 void GDNShell::_init() {
@@ -229,7 +292,9 @@ void GDNShell::_register_methods() {
     register_method("send_string", &GDNShell::send_string);
     register_method("kill", &GDNShell::kill);
 
-    register_method("fetch", &GDNShell::fetch);
+    register_method("get_lines", &GDNShell::get_lines);
+    register_method("fetch_at_line", &GDNShell::fetch_at_line);
+    register_method("clear", &GDNShell::clear);
 
 //    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);
 //    register_property<GDNShell, String>("APP_NAME", &GDNShell::APP_NAME, "Console");
@@ -237,6 +302,7 @@ void GDNShell::_register_methods() {
 
 //    register_signal<GDNShell>("console_update", "output_line", GODOT_VARIANT_TYPE_STRING);
     register_signal<GDNShell>("child_process_started");
+    register_signal<GDNShell>("child_process_stopped");
     register_signal<GDNShell>("waiting_for_inputs");
 }
 

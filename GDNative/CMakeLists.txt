@@ -11,7 +11,8 @@ set(GODOT_HEADER_INCLUDES
 
 set(SOURCE_FILES
     library.cpp
-    gdlibrary.cpp)
+    gdlibrary.cpp
+    TextHistory.cpp)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
 

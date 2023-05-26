@@ -5,6 +5,7 @@ extends Control
 func _ready():
 	GDNShell.root_node = self
 	GDNShell.terminal_node = $Console/Terminal
+	GDNShell.GDN_INIT()
 	$LogPrinter.text = ""
 #	GDNShell.clear()
 #	$Console/Input.editable = false
@@ -12,32 +13,26 @@ func _ready():
 var logger_lines = 0
 var logger_autoscroll = true
 func log_scroll():
-	if Log.LOG_EVERYTHING.size() != logger_lines:
+	if Log.LOG_CHANGED:
 		$LogPrinter.bbcode_text = ""
 		logger_lines = Log.LOG_EVERYTHING.size()
 		for l in Log.LOG_EVERYTHING:
 			$LogPrinter.bbcode_text += l + "\n"
 		if logger_autoscroll:
 			$LogPrinter.scroll_to_line(logger_lines-1)
-
-var console_lines = 0
-var console_autoscroll = true
-func console_catch():
-	if GDNShell.terminal_node.get_line_count() != console_lines:
-		console_lines = GDNShell.terminal_node.get_line_count()
-#		if console_autoscroll:
-#			GDNShell.terminal_node.scroll_to_line(console_lines-1)
+		Log.LOG_CHANGED = false
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	log_scroll()
-	console_catch()
 
 func _input(event):
 	if Input.is_action_just_pressed("debug_start"):
 		GDNShell.start()
 	if Input.is_action_just_pressed("debug_stop"):
 		GDNShell.stop()
+	if Input.is_action_just_pressed("clear_console"):
+		GDNShell.clear()
 
 func _on_BtnOpen_pressed():
 
@@ -66,4 +61,3 @@ func _on_BtnBack_pressed():
 	pass # Replace with function body.
 func _on_BtnStep_pressed():
 	pass # Replace with function body.
-

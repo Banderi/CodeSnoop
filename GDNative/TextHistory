@@ -1,0 +1,14 @@
+#ifndef GDNATIVE_TEXTHISTORY_
+#define GDNATIVE_TEXTHISTORY_
+
+#include <string>
+#include <vector>
+
+class TextHistory {
+private:
+    std::vector<std::string> history;
+public:
+    std::vector<std::string> fetch_lines(int line, int size);
+};
+
+#endif //GDNATIVE_TEXTHISTORY_

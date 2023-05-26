@@ -19,11 +19,13 @@ namespace godot {
         GDNShell();
         ~GDNShell();
 
-        void spawn(Variant node, String path);
+        void spawn(String path);
         bool send_string(String string);
         void kill();
 
-        String fetch();
+        int get_lines();
+        String fetch_at_line(int line, int size);
+        void clear();
 
         void _init(); // our initializer called by Godot
 

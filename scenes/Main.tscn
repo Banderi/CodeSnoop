@@ -1,17 +1,9 @@
-[gd_scene load_steps=10 format=2]
+[gd_scene load_steps=9 format=2]
 
 [ext_resource path="res://scripts/main.gd" type="Script" id=1]
-[ext_resource path="res://scripts/console.gd" type="Script" id=2]
 [ext_resource path="res://fonts/RobotoMono-Regular.tres" type="DynamicFont" id=3]
 [ext_resource path="res://fonts/basis33.tres" type="DynamicFont" id=4]
 [ext_resource path="res://scripts/Terminal.gd" type="Script" id=5]
-
-[sub_resource type="StyleBoxFlat" id=1]
-content_margin_left = 6.0
-content_margin_right = 6.0
-content_margin_top = 6.0
-content_margin_bottom = 6.0
-bg_color = Color( 0, 0, 0, 0.247059 )
 
 [sub_resource type="StyleBoxFlat" id=3]
 content_margin_left = 7.0
@@ -33,6 +25,13 @@ content_margin_right = 6.0
 content_margin_top = 6.0
 content_margin_bottom = 6.0
 bg_color = Color( 0, 0, 0, 0.929412 )
+
+[sub_resource type="StyleBoxFlat" id=1]
+content_margin_left = 6.0
+content_margin_right = 6.0
+content_margin_top = 6.0
+content_margin_bottom = 6.0
+bg_color = Color( 0, 0, 0, 0.247059 )
 
 [node name="ROOT" type="Control"]
 anchor_right = 1.0
@@ -131,35 +130,6 @@ margin_left = 8.0
 margin_top = -254.0
 margin_right = -756.0
 margin_bottom = -9.0
-__meta__ = {
-"_edit_group_": true
-}
-
-[node name="Terminal2" type="RichTextLabel" parent="Console"]
-visible = false
-anchor_right = 1.0
-anchor_bottom = 1.0
-focus_mode = 2
-custom_fonts/normal_font = ExtResource( 4 )
-custom_styles/normal = SubResource( 1 )
-text = "RichTextLabel *console_node = nullptr;
-
-void GDNShell::_register_methods() {
-    register_method(\"_process\", &GDNShell::_process);
-
-    register_method(\"spawn\", &GDNShell::spawn);
-    register_method(\"send_string\", &GDNShell::send_string);
-    register_method(\"send_input\", &GDNShell::send_input);
-    register_method(\"kill\", &GDNShell::kill);
-
-//    register_property<GDNShell, RichTextLabel>(\"console_node\", &GDNShell::console_node, empty_node);
-//    register_property<GDNShell, String>(\"APP_NAME\", &GDNShell::APP_NAME, \"Console\");
-//    register_property<GDNShell, Array>(\"LOG\", &GDNShell::LOG, Array());
-
-//    register_signal<GDNShell>(\"console_update\", \"output_line\", GODOT_VARIANT_TYPE_STRING);
-}"
-selection_enabled = true
-script = ExtResource( 2 )
 
 [node name="Terminal" type="RichTextLabel" parent="Console"]
 anchor_right = 1.0
@@ -183,7 +153,7 @@ void GDNShell::_register_methods() {
 
 //    register_signal<GDNShell>(\"console_update\", \"output_line\", GODOT_VARIANT_TYPE_STRING);
 }"
-scroll_following = true
+scroll_active = false
 script = ExtResource( 5 )
 
 [node name="Label" type="Label" parent="Console/Terminal"]
@@ -207,6 +177,28 @@ custom_fonts/font = ExtResource( 3 )
 custom_styles/normal = SubResource( 4 )
 text = "test gdb --arrccasge sfwf -i2"
 caret_blink = true
+
+[node name="VScrollBar" type="VScrollBar" parent="Console/Terminal"]
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -12.0
+
+[node name="SpinBox" type="SpinBox" parent="Console/Terminal"]
+margin_left = 743.0
+margin_top = 4.0
+margin_right = 817.0
+margin_bottom = 28.0
+max_value = 10.0
+value = 4.0
+rounded = true
+
+[node name="CheckBox" type="CheckBox" parent="Console/Terminal"]
+margin_left = 779.0
+margin_top = 34.0
+margin_right = 803.0
+margin_bottom = 58.0
+pressed = true
 
 [node name="LogPrinter" type="RichTextLabel" parent="."]
 anchor_top = 1.0
@@ -243,5 +235,4 @@ void GDNShell::_register_methods() {
 [connection signal="pressed" from="HBoxContainer/BtnBreak" to="." method="_on_BtnBreak_pressed"]
 [connection signal="pressed" from="HBoxContainer/BtnBack" to="." method="_on_BtnBack_pressed"]
 [connection signal="pressed" from="HBoxContainer/BtnStep" to="." method="_on_BtnStep_pressed"]
-[connection signal="input_redirect" from="Console/Terminal" to="." method="_input"]
 [connection signal="text_entered" from="Console/Terminal/Input" to="Console/Terminal" method="_on_Input_text_entered"]

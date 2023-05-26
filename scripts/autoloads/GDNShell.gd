@@ -15,7 +15,12 @@ func _child_process_started():
 	pass
 func _child_process_stopped():
 	print("STOPPED!")
-	pass
+
+var is_stopping = false
+func _process(delta):
+	if is_stopping:
+		shell_thread.wait_to_finish()
+		is_stopping = false
 
 func GDN_INIT():
 	assert(GDNSHELL != null)
@@ -29,7 +34,7 @@ func _THREAD_SUBROUTINE(cmd):
 	GDNSHELL.spawn(cmd)
 
 	# cleanup thread
-	shell_thread.call_deferred("wait_to_finish")
+	is_stopping = true
 	Log.generic(self, str(":: Exiting thread ", shell_thread.get_id()))
 
 var shell_cmd = "E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe"
@@ -43,12 +48,15 @@ func start():
 	terminal_node.text = ""
 	shell_thread.start(self, "_THREAD_SUBROUTINE", shell_cmd)
 func stop():
+	if is_stopping == true:
+		return
 	assert(GDNSHELL != null)
-	if GDNSHELL != null && shell_thread != null && shell_thread.is_active() && shell_thread.is_alive():
+	assert(shell_thread != null)
+	if shell_thread.is_alive():
 		Log.generic(self, str("Killing child process on thread ", shell_thread.get_id()))
 		GDNSHELL.kill()
-		if shell_thread.is_alive():
-			shell_thread.wait_to_finish()
+	if shell_thread.is_active():
+		shell_thread.wait_to_finish()
 	else:
 		Log.generic(self, "No process is running!")
 

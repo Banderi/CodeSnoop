@@ -3,13 +3,15 @@
 #include <string>
 #include <Windows.h>
 #include <iostream>
+#include <mutex>
 
-#include <TextEdit.hpp>
+#include "TextEdit.hpp"
 
 
 using namespace godot;
 
-TextEdit *console_node = nullptr;
+//Node *console_obj = nullptr;
+//TextEdit *console_node = nullptr;
 HANDLE hJob;
 HANDLE hInputRead, hInputWrite, hOutputRead, hOutputWrite;
 PROCESS_INFORMATION pi;
@@ -18,27 +20,37 @@ bool shouldTerminate = false;
 /////////////
 
 String to_str(int n) {
-    return String(std::to_string(n).c_str());
+    return {std::to_string(n).c_str()};
 }
 String to_str(float n) {
-    return String(std::to_string(n).c_str());
+    return {std::to_string(n).c_str()};
 }
+
+std::string buffered_cout;
+std::mutex buffer_mutex;
+//bool to_flush = false;
+//DWORD bytes_synced = 0;
 
 void PrintErr(const char *err) {
     std::cerr << err << std::endl;
     ERR_PRINT(err);
 }
-void printOutput(char *buffer, int bytesRead) {
+void printOutput(char *buffer, DWORD bytesRead) {
     // Process the output as needed
     std::cout.write(buffer, bytesRead);
     std::cout.flush();
 
-    console_node->set_text(console_node->get_text() + buffer);
+    std::lock_guard<std::mutex> guard(buffer_mutex);
+    buffered_cout += buffer;
+
+//    console_node->set_text(console_node->get_text() + buffer);
+//    console_node->call("_receive_text", String(buffer), (int)bytesRead);
+//    console_node->call_deferred("_receive_text", String(buffer), (int)bytesRead);
 }
 bool redirectStdout () {
     while (true) {
         DWORD dwAvail = 0;
-        if (!PeekNamedPipe(hOutputRead, NULL, 0, NULL, &dwAvail, NULL))
+        if (!PeekNamedPipe(hOutputRead, nullptr, 0, nullptr, &dwAvail, nullptr))
             break; // error, the child process might have ended
 
         if (!dwAvail) // no data available, return
@@ -47,7 +59,7 @@ bool redirectStdout () {
         char buffer[4096];
         DWORD bytesRead = 0;
 
-        if (!ReadFile(hOutputRead, buffer, sizeof(buffer), &bytesRead, NULL) || bytesRead == 0)
+        if (!ReadFile(hOutputRead, buffer, sizeof(buffer), &bytesRead, nullptr) || bytesRead == 0)
             break; // error, the child process might have ended
 
         buffer[bytesRead] = 0;
@@ -55,34 +67,18 @@ bool redirectStdout () {
     }
     return true;
 }
-// Control handler function for the parent process
-//BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
-//    if (dwCtrlType == CTRL_CLOSE_EVENT)
-//    {
-//        // Send a CTRL_BREAK_EVENT to the child process group
-//        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pi.dwProcessId);
-//    }
-//
-//    // Let the default handler handle the event as well
-//    return FALSE;
-//}
 
-void GDNShell::spawn(Variant node) {
-
-    // Register the control handler for the parent process
-//    SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+void GDNShell::spawn(Variant node, String path) {
 
     // Register console node
-    console_node = Object::cast_to<TextEdit>(node.operator Object*());
-    if (console_node == nullptr) {
-        PrintErr("Passed object is not a RichTextLabel!");
-        return;
-    }
-
-    char *path = (char*)"E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe";
+//    if (!Object::cast_to<Node>(node)->is_class("TextEdit")) {
+//        PrintErr("Passed object is not a valid TextEdit terminal!");
+//        return;
+//    }
+//    console_node = Object::cast_to<TextEdit>(node);
 
     // Create pipes for input and output
-    SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
+    SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
     if (!CreatePipe(&hOutputRead, &hOutputWrite, &sa, 0) ||
         !CreatePipe(&hInputRead, &hInputWrite, &sa, 0))
     {
@@ -103,11 +99,9 @@ void GDNShell::spawn(Variant node) {
     si.wShowWindow = SW_HIDE;
 
     // Create the child process
-//    if (!CreateProcess(NULL, path, NULL, NULL, TRUE, CREATE_NEW_PROCESS_GROUP, NULL, NULL, &si, &pi))
-    if (!CreateProcess(NULL, path, NULL, NULL, TRUE, CREATE_SUSPENDED, NULL, NULL, &si, &pi))
+    if (!CreateProcess(nullptr, path.alloc_c_string(), nullptr, nullptr, TRUE, CREATE_SUSPENDED, nullptr, nullptr, &si, &pi))
     {
         PrintErr("Failed to create process.");
-//        CloseHandle(hJob);
         return;
     }
 
@@ -117,7 +111,6 @@ void GDNShell::spawn(Variant node) {
         PrintErr("Failed to assign child process to job object.");
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
-//        CloseHandle(hJob);
         return;
     }
 
@@ -160,24 +153,38 @@ void GDNShell::spawn(Variant node) {
     // Cleanup
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
-    console_node = nullptr;
+//    console_node = nullptr;
 }
 bool GDNShell::send_string(String string) {
-    std::string userInput = std::string(string.alloc_c_string());
-    userInput += "\n";  // Add newline character to simulate pressing Enter
+    char *s = string.alloc_c_string();
+//    auto i = strlen(s);
+//    std::string userInput = std::string(string.alloc_c_string());
+//    userInput += "\n";  // Add newline character to simulate pressing Enter
+
+
+
+//    auto s = (std::string(string.alloc_c_string()) + "\n").c_str();
+
     DWORD bytesWritten;
-    if (!WriteFile(hInputWrite, userInput.c_str(), static_cast<DWORD>(userInput.length()), &bytesWritten, NULL))
+    if (!WriteFile(hInputWrite, s, static_cast<DWORD>(strlen(s)), &bytesWritten, nullptr))
     {
         PrintErr("Failed to write to child process.");
         return false;
     }
 
-    std::cout << userInput.c_str() << std::endl;
+    std::cout << s << std::endl;
     return true;
 }
 void GDNShell::kill() {
     // Request process termination
     shouldTerminate = true;
+}
+
+String GDNShell::fetch() {
+    std::lock_guard<std::mutex> guard(buffer_mutex);
+    String str = buffered_cout.c_str();
+    buffered_cout.clear();
+    return str;
 }
 
 void GDNShell::_init() {
@@ -212,8 +219,8 @@ void GDNShell::_process(float delta) {
 //    append_bbcode(String("a") + String("b"));
 }
 
-GDNShell::GDNShell() {}
-GDNShell::~GDNShell() {}
+GDNShell::GDNShell() = default;
+GDNShell::~GDNShell() = default;
 
 void GDNShell::_register_methods() {
     register_method("_process", &GDNShell::_process);
@@ -221,6 +228,8 @@ void GDNShell::_register_methods() {
     register_method("spawn", &GDNShell::spawn);
     register_method("send_string", &GDNShell::send_string);
     register_method("kill", &GDNShell::kill);
+
+    register_method("fetch", &GDNShell::fetch);
 
 //    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);
 //    register_property<GDNShell, String>("APP_NAME", &GDNShell::APP_NAME, "Console");
@@ -234,8 +243,6 @@ void GDNShell::_register_methods() {
 /////////////
 
 void process_cleanup() {
-//    CloseHandle(pi.hProcess);
-//    CloseHandle(pi.hThread);
     CloseHandle(hJob);
     std::cerr << "Cleaning up..." << std::endl;
 }
@@ -252,8 +259,8 @@ bool process_setup() {
     std::set_terminate(process_unexpected_termination);
 
     // Create a job object
-    hJob = CreateJobObject(NULL, NULL);
-    if (hJob == NULL)
+    hJob = CreateJobObject(nullptr, nullptr);
+    if (hJob == nullptr)
     {
         PrintErr("Failed to create job object.");
         return false;

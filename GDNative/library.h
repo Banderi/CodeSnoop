@@ -10,7 +10,7 @@ namespace godot {
         GODOT_CLASS(GDNShell, Node)
 
     private:
-        float time_passed;
+        float time_passed{};
         Array LOG;
 
     public:
@@ -19,9 +19,11 @@ namespace godot {
         GDNShell();
         ~GDNShell();
 
-        void spawn(Variant node);
+        void spawn(Variant node, String path);
         bool send_string(String string);
         void kill();
+
+        String fetch();
 
         void _init(); // our initializer called by Godot
 

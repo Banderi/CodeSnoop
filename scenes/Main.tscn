@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=2]
+[gd_scene load_steps=10 format=2]
 
 [ext_resource path="res://scripts/main.gd" type="Script" id=1]
 [ext_resource path="res://scripts/console.gd" type="Script" id=2]
@@ -26,6 +26,13 @@ content_margin_right = 6.0
 content_margin_top = 6.0
 content_margin_bottom = 6.0
 bg_color = Color( 0, 0, 0, 0.247059 )
+
+[sub_resource type="StyleBoxFlat" id=4]
+content_margin_left = 7.0
+content_margin_right = 6.0
+content_margin_top = 6.0
+content_margin_bottom = 6.0
+bg_color = Color( 0, 0, 0, 0.929412 )
 
 [node name="ROOT" type="Control"]
 anchor_right = 1.0
@@ -154,12 +161,10 @@ void GDNShell::_register_methods() {
 selection_enabled = true
 script = ExtResource( 2 )
 
-[node name="Terminal" type="TextEdit" parent="Console"]
+[node name="Terminal" type="RichTextLabel" parent="Console"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-custom_colors/font_color_readonly = Color( 1, 1, 1, 1 )
-custom_fonts/font = ExtResource( 4 )
-custom_styles/read_only = SubResource( 3 )
+custom_fonts/normal_font = ExtResource( 4 )
 custom_styles/focus = SubResource( 3 )
 custom_styles/normal = SubResource( 2 )
 text = "RichTextLabel *console_node = nullptr;
@@ -178,13 +183,11 @@ void GDNShell::_register_methods() {
 
 //    register_signal<GDNShell>(\"console_update\", \"output_line\", GODOT_VARIANT_TYPE_STRING);
 }"
-readonly = true
-syntax_highlighting = true
-minimap_draw = true
-caret_block_mode = true
+scroll_following = true
 script = ExtResource( 5 )
 
 [node name="Label" type="Label" parent="Console/Terminal"]
+visible = false
 margin_left = 649.0
 margin_top = 6.0
 margin_right = 1221.0
@@ -192,14 +195,16 @@ margin_bottom = 98.0
 custom_fonts/font = ExtResource( 4 )
 text = "teasat"
 
-[node name="Input2" type="LineEdit" parent="Console"]
-visible = false
+[node name="Input" type="LineEdit" parent="Console/Terminal"]
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_top = -24.0
+margin_left = 4.0
+margin_top = -33.0
+margin_right = -19.0
+margin_bottom = -6.0
 custom_fonts/font = ExtResource( 3 )
-custom_styles/normal = SubResource( 2 )
+custom_styles/normal = SubResource( 4 )
 text = "test gdb --arrccasge sfwf -i2"
 caret_blink = true
 
@@ -239,4 +244,4 @@ void GDNShell::_register_methods() {
 [connection signal="pressed" from="HBoxContainer/BtnBack" to="." method="_on_BtnBack_pressed"]
 [connection signal="pressed" from="HBoxContainer/BtnStep" to="." method="_on_BtnStep_pressed"]
 [connection signal="input_redirect" from="Console/Terminal" to="." method="_input"]
-[connection signal="text_changed" from="Console/Terminal" to="Console/Terminal" method="_on_Terminal_text_changed"]
+[connection signal="text_entered" from="Console/Terminal/Input" to="Console/Terminal" method="_on_Input_text_entered"]

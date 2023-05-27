@@ -19,7 +19,8 @@ bool shouldTerminate = false;
 std::string history;
 std::vector<int> history_linebreaks;
 std::mutex buffer_mutex;
-int history_last_fetched_pos;
+int history_lines = 0;
+int history_last_fetched_pos = 0;
 
 std::mutex termination_mutex;
 
@@ -63,6 +64,7 @@ void printOutput(char *buffer, DWORD bytesRead) {
         pos += 1; // record the START of each line!
         history_linebreaks.push_back(string_start + pos);
     }
+    history_lines = history_linebreaks.size();
 
     // Push string into history
     history += formatted;
@@ -92,6 +94,7 @@ void clear_history() {
     history.clear();
     history_linebreaks.clear();
     history_last_fetched_pos = 0;
+    history_lines = 0;
 }
 
 void GDNShell::spawn(String path) {
@@ -219,8 +222,7 @@ void GDNShell::kill() {
 }
 
 int GDNShell::get_lines() {
-    std::lock_guard<std::mutex> guard(buffer_mutex);
-    return history_linebreaks.size();
+    return history_lines;
 }
 String GDNShell::fetch_at_line(int _START_LINE, int _END_LINE) {
     std::lock_guard<std::mutex> guard(buffer_mutex);

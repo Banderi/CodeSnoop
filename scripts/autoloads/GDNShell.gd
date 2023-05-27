@@ -64,14 +64,17 @@ func stop():
 
 var SYNC_MODE = 0
 func sync_text(line, size):
+	assert(GDNSHELL != null)
 	var buffer = null
-	if GDNSHELL != null:
-		match SYNC_MODE:
-			0:
-				buffer = GDNSHELL.fetch_at_line(line, size)
-			1:
-				buffer = GDNSHELL.fetch_since_last_time()
+	match SYNC_MODE:
+		0:
+			buffer = GDNSHELL.fetch_at_line(line, size)
+		1:
+			buffer = GDNSHELL.fetch_since_last_time()
 	return buffer
+func get_lines():
+	assert(GDNSHELL != null)
+	return GDNSHELL.get_lines()
 
 func send_string(s : String):
 	if shell_thread != null:

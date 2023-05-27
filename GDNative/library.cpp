@@ -20,7 +20,6 @@ std::string history;
 std::vector<int> history_linebreaks;
 std::mutex buffer_mutex;
 int history_last_fetched_pos;
-int history_size;
 
 std::mutex termination_mutex;
 
@@ -55,21 +54,18 @@ void printOutput(char *buffer, DWORD bytesRead) {
     std::cout.flush();
 
     // Extract and record linebreaks
-    int prev_linebreak = 0;
+    int string_start = history.size();
     std::lock_guard<std::mutex> guard(buffer_mutex);
-    if (!history_linebreaks.empty())
-        prev_linebreak = history_linebreaks.at(history_linebreaks.size() - 1);
-    else
-        history_linebreaks.push_back(0);
+    if (history_linebreaks.empty())
+        history_linebreaks.push_back(0); // always have '0' as the first one
     pos = 0;
     while ((pos = formatted.find("\n", pos)) != std::string::npos) {
-        history_linebreaks.push_back(pos);
-        pos += 1;
+        pos += 1; // record the START of each line!
+        history_linebreaks.push_back(string_start + pos);
     }
 
     // Push string into history
     history += formatted;
-    history_size += formatted.size();
 }
 bool redirectStdout () {
     while (true) {
@@ -96,12 +92,14 @@ void clear_history() {
     history.clear();
     history_linebreaks.clear();
     history_last_fetched_pos = 0;
-    history_size = 0;
 }
 
 void GDNShell::spawn(String path) {
     simpleDebugPrint("--> GDNShell::spawn CALL");
     simpleDebugPrint("GDNShell::spawn 1");
+
+    // Clear previous history and buffers
+    clear_history();
 
     // Create pipes for input and output
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
@@ -224,33 +222,45 @@ int GDNShell::get_lines() {
     std::lock_guard<std::mutex> guard(buffer_mutex);
     return history_linebreaks.size();
 }
-String GDNShell::fetch_at_line(int _line, int _size) {
+String GDNShell::fetch_at_line(int _START_LINE, int _END_LINE) {
     std::lock_guard<std::mutex> guard(buffer_mutex);
-    int LASTLINE = history_linebreaks.size();
-    int STARTLINE = _line;
-    if (_line == -1)
-        STARTLINE = LASTLINE - _size;
-    int ENDLINE = STARTLINE + _size;
-    if (STARTLINE < 0)
-        STARTLINE = 0;
+    const int LASTLINE = history_linebreaks.size();
 
-    if (STARTLINE >= LASTLINE)
+    if (history.size() == 0)
+        return "";
+
+    // if negative, scroll to the bottom
+    if (_START_LINE < 0) {
+        _START_LINE += LASTLINE;
+        _END_LINE += LASTLINE;
+    }
+
+    int s_start;
+    if (_START_LINE >= LASTLINE)
         return "";
     else {
-        int s_start = history_linebreaks.at(STARTLINE);
-        int s_end;
-        if (ENDLINE >= LASTLINE) {
-            s_end = history.size();
-        } else
-            s_end = history_linebreaks.at(ENDLINE);
-        if (s_start != 0)
-            s_start += 1;
-        return history.substr(s_start, s_end - s_start).c_str();
+        _START_LINE = Math::clamp(_START_LINE, 0, LASTLINE - 1);
+        s_start = history_linebreaks.at(_START_LINE);
     }
+
+    int s_end;
+    if (_END_LINE >= LASTLINE)
+        s_end = history.size();
+    else {
+        _END_LINE = Math::clamp(_END_LINE, 0, LASTLINE - 1);
+        s_end = history_linebreaks.at(_END_LINE);
+    }
+
+    s_start = Math::clamp(s_start, 0, int(history.size() - 1));
+    s_end = Math::clamp(s_end, 0, int(history.size() - 1));
+
+    if (_START_LINE != _END_LINE && s_start != s_end)
+        return history.substr(s_start, s_end - s_start).c_str();
     return "";
 }
 String GDNShell::fetch_since_last_time() {
     std::lock_guard<std::mutex> guard(buffer_mutex);
+    int history_size = history.size();
     if (history_size != history_last_fetched_pos) {
         int n = history_size - history_last_fetched_pos;
         std::string str = history.substr(history_last_fetched_pos, n);

@@ -5,16 +5,23 @@ var DEBUG = false
 var scroll = 0
 var max_lines = 4
 func _process(delta):
-	var buffer = GDNShell.sync_text(-1 if $CheckBox.pressed else $VScrollBar.value, $SpinBox.value)
-	if buffer != null && buffer != "":
-		text += buffer
 
+	var start_line = -$SpinBox.value if $CheckBox.pressed else get_parent().get_node("VScrollBar").value
+	var end_line = 0 if $CheckBox.pressed else start_line + $SpinBox.value
+	var buffer = GDNShell.sync_text(start_line, end_line)
+
+	if buffer != null:
+		match GDNShell.SYNC_MODE:
+			0:
+				text = buffer
+			1:
+				text += buffer
 
 	$Label.text = str(
 		GDNShell.shell_thread, "\n",
 		GDNShell.shell_thread.is_active(), "\n",
 		GDNShell.shell_thread.is_alive(), "\n",
-
+		start_line, " : ", end_line, "\n",
 		""
 	)
 

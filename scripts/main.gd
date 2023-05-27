@@ -25,7 +25,7 @@ func log_scroll():
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	log_scroll()
-	$Label.text = str(Engine.get_frames_per_second())
+	$Label.text = str(Engine.get_frames_per_second(), " FPS")
 
 func _input(event):
 	if Input.is_action_just_pressed("debug_start"):

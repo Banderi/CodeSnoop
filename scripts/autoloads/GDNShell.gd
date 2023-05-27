@@ -61,12 +61,17 @@ func stop():
 	else:
 		Log.generic(self, "No process is running!")
 
+
+var SYNC_MODE = 0
 func sync_text(line, size):
+	var buffer = null
 	if GDNSHELL != null:
-#		var buffer = GDNSHELL.fetch_at_line(line, size)
-		var buffer = GDNSHELL.fetch_since_last_time()
-		return buffer
-	return null
+		match SYNC_MODE:
+			0:
+				buffer = GDNSHELL.fetch_at_line(line, size)
+			1:
+				buffer = GDNSHELL.fetch_since_last_time()
+	return buffer
 
 func send_string(s : String):
 	if shell_thread != null:

@@ -126,15 +126,15 @@ text = "Step"
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = 8.0
-margin_top = -254.0
-margin_right = -756.0
-margin_bottom = -9.0
+margin_top = -271.0
 
 [node name="Terminal" type="RichTextLabel" parent="Console"]
-anchor_right = 1.0
+anchor_right = 0.527
 anchor_bottom = 1.0
-margin_bottom = -27.0
+margin_left = 8.0
+margin_right = -0.200012
+margin_bottom = -36.0
+rect_clip_content = false
 focus_mode = 2
 custom_fonts/normal_font = ExtResource( 4 )
 custom_styles/focus = SubResource( 3 )
@@ -155,64 +155,73 @@ void GDNShell::_register_methods() {
 
 //    register_signal<GDNShell>(\"console_update\", \"output_line\", GODOT_VARIANT_TYPE_STRING);
 }"
-scroll_following = true
+scroll_active = false
 selection_enabled = true
 script = ExtResource( 5 )
 
 [node name="Label" type="Label" parent="Console/Terminal"]
-margin_left = 466.0
-margin_top = 11.0
-margin_right = 1340.0
-margin_bottom = 331.0
+anchor_left = 1.0
+anchor_right = 1.0
+margin_left = -249.0
+margin_top = 16.0
+margin_right = 625.0
+margin_bottom = 336.0
 custom_fonts/font = ExtResource( 4 )
 text = "teasat"
 
 [node name="SpinBox" type="SpinBox" parent="Console/Terminal"]
-visible = false
-margin_left = 743.0
-margin_top = 4.0
-margin_right = 817.0
-margin_bottom = 28.0
-max_value = 10.0
+anchor_left = 1.0
+anchor_right = 1.0
+margin_left = -94.0
+margin_top = 5.0
+margin_right = -20.0
+margin_bottom = 29.0
+max_value = 20.0
 value = 4.0
 rounded = true
 
 [node name="CheckBox" type="CheckBox" parent="Console/Terminal"]
-visible = false
-margin_left = 779.0
-margin_top = 34.0
-margin_right = 803.0
-margin_bottom = 58.0
+anchor_left = 1.0
+anchor_right = 1.0
+margin_left = -128.0
+margin_top = 6.0
+margin_right = -104.0
+margin_bottom = 30.0
 pressed = true
 
 [node name="VScrollBar" type="VScrollBar" parent="Console"]
-visible = false
-anchor_left = 1.0
-anchor_right = 1.0
+anchor_left = 0.519
+anchor_right = 0.527
 anchor_bottom = 1.0
-margin_left = -12.0
+margin_left = 0.599915
+margin_right = -0.200012
+margin_bottom = -37.0
 max_value = 284.0
 step = 1.0
-page = 218.0
-value = 66.0
+page = 235.0
+value = 13.0
 
 [node name="Input" type="LineEdit" parent="Console"]
 anchor_top = 1.0
-anchor_right = 1.0
+anchor_right = 0.527
 anchor_bottom = 1.0
-margin_top = -27.0
+margin_left = 8.0
+margin_top = -36.0
+margin_right = -0.200012
+margin_bottom = -9.0
 custom_fonts/font = ExtResource( 3 )
 custom_styles/normal = SubResource( 4 )
 caret_blink = true
 
 [node name="LogPrinter" type="RichTextLabel" parent="."]
+anchor_left = 0.531
 anchor_top = 1.0
 anchor_right = 1.0
-anchor_bottom = 1.0
-margin_left = 850.0
-margin_top = -254.0
+anchor_bottom = 1.022
+margin_left = 0.399963
+margin_top = -269.0
 margin_right = -10.0
-margin_bottom = -9.0
+margin_bottom = -31.5281
 focus_mode = 2
 custom_fonts/normal_font = ExtResource( 4 )
 custom_styles/normal = SubResource( 1 )
@@ -235,10 +244,10 @@ void GDNShell::_register_methods() {
 selection_enabled = true
 
 [node name="Label" type="Label" parent="."]
-margin_left = 19.0
-margin_top = 703.0
-margin_right = 125.0
-margin_bottom = 752.0
+margin_left = 17.0
+margin_top = 52.0
+margin_right = 123.0
+margin_bottom = 101.0
 text = "90 FPS"
 
 [connection signal="pressed" from="HBoxContainer2/BtnOpen" to="." method="_on_BtnOpen_pressed"]

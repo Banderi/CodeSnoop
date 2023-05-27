@@ -24,7 +24,7 @@ namespace godot {
         void kill();
 
         int get_lines();
-        String fetch_at_line(int line, int size);
+        String fetch_at_line(int _START_LINE, int _END_LINE);
         String fetch_since_last_time();
         void clear();
 

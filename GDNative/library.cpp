@@ -10,7 +10,6 @@
 
 using namespace godot;
 
-//RichTextLabel *console_node = nullptr;
 HANDLE hJob;
 HANDLE hInputRead, hInputWrite, hOutputRead, hOutputWrite;
 PROCESS_INFORMATION pi;

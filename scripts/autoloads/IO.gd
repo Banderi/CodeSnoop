@@ -35,7 +35,7 @@ func write(path, data, create_folder_if_missing = true, password = ""):
 #	else:
 
 	# init stream
-	var file = File.new()
+	var file = DataFile.new()
 	if password == "":
 		err = file.open(path, File.WRITE)
 	else:
@@ -54,9 +54,9 @@ func write(path, data, create_folder_if_missing = true, password = ""):
 	file.close()
 	Log.generic(null,str("file '",path,"' written successfully!"))
 	return true
-func read(path, get_as_text = false, password = ""):
+func read(path, password = ""):
 	# init stream
-	var file = File.new()
+	var file = DataFile.new()
 	var err = -1
 	if password == "":
 		err = file.open(path, File.READ)
@@ -65,21 +65,29 @@ func read(path, get_as_text = false, password = ""):
 	if err != OK:
 		Log.error(null,err,str("could not read file '",path,"'"))
 		return null
-
-	# read data
-	var data = null
-	if get_as_text:
-		data = file.get_as_text()
-	else:
-		data = file.get_var(true)
-#		data = str2var(file.get_as_text())
-
-	# close stream
-	file.close()
+	
 	Log.generic(null,str("file '",path,"' read successfully!"))
+	return file
+func read_as(path, type, password = ""):
+	var file = read(path, password)
+	var data = null
+	if file != null:
+		match type:
+			0:
+				data = file.get_as_text()
+			1:
+				data = file.get_var(true)
+		file.close() # remember to close the file stream!
 	return data
+func read_as_text(path, password = ""):
+	return read_as(path, 0, password)
+func read_as_var(path, password = ""):
+	return read_as(path, 1, password)
+func file_exists(path):
+	var file = DataFile.new()
+	return file.file_exists(path)
 func metadata(path):
-	var file = File.new()
+	var file = DataFile.new()
 	var err = file.open(path, File.READ)
 	if err != OK:
 		Log.error(null,err,str("could not read file '",path,"'"))
@@ -100,6 +108,21 @@ func delete(path):
 		Log.error(null,err,str("could not delete file '",path,"'"))
 		return false
 	return true
+func move_file(path, to, remove_previous = true, overwrite = false):
+	if !overwrite && file_exists(to):
+		Log.error(null,GlobalScope.Error.ERR_ALREADY_EXISTS,str("could not move file from '",path,"' to '",to,"'"))
+		return false
+	var dir = Directory.new()
+	var err = dir.copy(path, to)
+	if err != OK:
+		Log.error(null,err,str("could not move file from '",path,"' to '",to,"'"))
+		return false
+	if remove_previous:
+		err = dir.remove(path)
+		if err != OK:
+			Log.error(null,err,str("could not delete file '",path,"'"))
+			return false
+	return true
 
 func dir_contents(path):
 	var dir = Directory.new()
@@ -116,7 +139,9 @@ func dir_contents(path):
 		var file_name = dir.get_next()
 		while file_name != "":
 			if file_name != "." && file_name != ".." :
-				var file_data = metadata(str(path,"/",file_name))
+				var file_data = metadata(
+					str(path,"/",file_name) if !path.ends_with("/") else str(path,file_name)
+				)
 				if dir.current_is_dir():
 					results.folders[file_name] = file_data
 				else:
@@ -134,3 +159,41 @@ func find_most_recent_file(path):
 			most_recent_timestamp = file.modified_timestamp
 			most_recent_file = file_name
 	return most_recent_file
+
+# code by @DanielKotzer https://godotforums.org/d/20958-extracting-the-content-of-a-zip-file/4
+func unzip(zip_file, destination):
+	# load Gdunzip addon script
+	var gdunzip = load("res://addons/gdunzip/gdunzip.gd").new()
+	var r = gdunzip.load(zip_file)
+	if !r:
+		Log.error(null,GlobalScope.Error.ERR_CANT_OPEN,str("could not load zip file '",zip_file,"'"))
+		return false
+
+	# read zip file contents and adds them to project's virtual workspace
+	var _res = ProjectSettings.load_resource_pack(zip_file)
+
+	# extract single files from project workspace and write to disk
+	for f in gdunzip.files:
+		if !export_virtual_file(f, destination):
+			return false
+	return true
+func export_virtual_file(file_name, destination):
+	# open read stream
+	var file = DataFile.new()
+	if file.file_exists("res://" + file_name):
+		file.open(("res://" + file_name), File.READ)
+		var content = file.get_buffer(file.get_len())
+		file.close()
+
+		# create directory if it doesn't exist
+		var base_dir = destination + file_name.get_base_dir()
+		var dir = Directory.new()
+		dir.make_dir(base_dir)
+
+		# open write stream
+		file = DataFile.new()
+		file.open(destination + file_name, File.WRITE)
+		file.store_buffer(content)
+		file.close()
+		return true
+	return false

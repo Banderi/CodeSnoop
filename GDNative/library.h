@@ -21,11 +21,13 @@ namespace godot {
 
         void spawn(String path);
         bool send_string(String string);
+//        int get_process_status();
+//        bool is_waiting_for_input();
         void kill();
 
-        int get_lines();
-        String fetch_at_line(int _START_LINE, int _END_LINE);
-        String fetch_since_last_time();
+        int get_lines_count();
+        String get_text(int _START_LINE, int _END_LINE);
+        String get_all_text();
         void clear();
 
         void _init(); // our initializer called by Godot

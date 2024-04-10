@@ -68,7 +68,7 @@ void printOutput(char *buffer, DWORD bytesRead) {
     // Push string into history
     history += formatted;
 }
-bool redirectStdout () {
+bool redirectStdout() {
     while (true) {
         DWORD dwAvail = 0;
         if (!PeekNamedPipe(hOutputRead, nullptr, 0, nullptr, &dwAvail, nullptr))
@@ -84,7 +84,7 @@ bool redirectStdout () {
             break; // error, the child process might have ended
 
         buffer[bytesRead] = 0;
-        printOutput(buffer, bytesRead); // display the output
+        printOutput(buffer, bytesRead); // display the output (push to internal history)
     }
     return true;
 }
@@ -220,10 +220,10 @@ void GDNShell::kill() {
     simpleDebugPrint("<-- GDNShell::kill RET");
 }
 
-int GDNShell::get_lines() {
+int GDNShell::get_lines_count() {
     return history_lines;
 }
-String GDNShell::fetch_at_line(int _START_LINE, int _END_LINE) {
+String GDNShell::get_text(int _START_LINE, int _END_LINE) {
     std::lock_guard<std::mutex> guard(buffer_mutex);
     const int LASTLINE = history_linebreaks.size();
 
@@ -259,7 +259,7 @@ String GDNShell::fetch_at_line(int _START_LINE, int _END_LINE) {
         return history.substr(s_start, s_end - s_start).c_str();
     return "";
 }
-String GDNShell::fetch_since_last_time() {
+String GDNShell::get_all_text() {
     std::lock_guard<std::mutex> guard(buffer_mutex);
     int history_size = history.size();
     if (history_size != history_last_fetched_pos) {
@@ -291,11 +291,13 @@ void GDNShell::_register_methods() {
 
     register_method("spawn", &GDNShell::spawn);
     register_method("send_string", &GDNShell::send_string);
+//    register_method("get_process_status", &GDNShell::get_process_status);
+//    register_method("is_waiting_for_input", &GDNShell::send_string);
     register_method("kill", &GDNShell::kill);
 
-    register_method("get_lines", &GDNShell::get_lines);
-    register_method("fetch_at_line", &GDNShell::fetch_at_line);
-    register_method("fetch_since_last_time", &GDNShell::fetch_since_last_time);
+    register_method("get_lines_count", &GDNShell::get_lines_count);
+    register_method("get_text", &GDNShell::get_text);
+    register_method("get_all_text", &GDNShell::get_all_text);
     register_method("clear", &GDNShell::clear);
 
 //    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);

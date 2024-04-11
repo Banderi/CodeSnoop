@@ -2,7 +2,7 @@ extends VSlider
 
 signal scrolled
 
-func _input(event):
+func _input(_event):
 	var parent = get_parent()
 	var parent_rect = Rect2(Vector2(), parent.rect_size + Vector2(-20,0))
 	if parent_rect.has_point(parent.get_local_mouse_position()):
@@ -13,5 +13,5 @@ func _input(event):
 			value -= 4
 #			emit_signal("scrolled")
 
-func _on_VSlider_value_changed(value):
+func _on_VSlider_value_changed(_value):
 	emit_signal("scrolled")

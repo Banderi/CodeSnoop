@@ -122,8 +122,8 @@ void GDNShell::spawn(String path) {
     si.hStdInput = hInputRead;
 
     // Set the window style to hide the child process window
-    si.dwFlags |= STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;
+//    si.dwFlags |= STARTF_USESHOWWINDOW;
+//    si.wShowWindow = SW_HIDE;
 
     // Create the child process
     if (!CreateProcess(nullptr, path.alloc_c_string(), nullptr, nullptr, TRUE, CREATE_SUSPENDED, nullptr, nullptr, &si, &pi))

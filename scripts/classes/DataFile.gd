@@ -27,6 +27,10 @@ func read(type, schema_index : int = -1, optional_formatting = null):
 			return DataStruct.new(type, get_64(), optional_formatting, offset, schema_index)
 #		"i64":
 #			return DataStruct.new(type, u_to_i(get_64(),64), optional_formatting, offset, schema_index)
+		"p32":
+			return DataStruct.new(type, u_to_i(get_32(),32), "0x%08X", offset, schema_index)
+		"p64":
+			return DataStruct.new(type, get_64(), "0x%016X", offset, schema_index)
 		_:
 			return DataStruct.new(type, get_buffer(str(type).to_int()), optional_formatting, offset, schema_index)
 func read_grid(cell_size, schema_index : int = -1, optional_formatting = null):

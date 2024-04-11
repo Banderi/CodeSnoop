@@ -25,11 +25,7 @@ func run_sync(cmd, node : Node, printcmd = true, printout = false):
 	# invoke OS function & get results back!
 	var output = []
 
-
-#	var test = OS.read_string_from_stdin()
-
-
-	OS.execute(bin, cmd, true, output)
+	var _r = OS.execute(bin, cmd, true, output)
 	if printout && output.size() > 0 && output[0].length() > 0:
 		var txt = str(output[0]).substr(0,str(output[0]).length() - 1)
 		for line in txt.split("\n"):
@@ -73,7 +69,7 @@ func _threaded_execute(args):
 
 	# invoke OS function & get results back!
 	var output = []
-	OS.execute(bin, cmd, true, output)
+	var _r = OS.execute(bin, cmd, true, output)
 	args["output"] = output
 	if args.printout && output.size() > 0 && output[0].length() > 0:
 		var txt = str(output[0]).substr(0,str(output[0]).length() - 1)

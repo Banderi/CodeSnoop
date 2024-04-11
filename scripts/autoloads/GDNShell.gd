@@ -26,7 +26,7 @@ func has_started_process_attached():
 		return false
 	return true
 
-func _process(delta):
+func _process(_delta):
 	if is_stopping:
 		shell_thread.wait_to_finish()
 		is_stopping = false

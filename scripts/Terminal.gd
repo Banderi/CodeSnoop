@@ -14,7 +14,7 @@ var scroll = 0
 var lines_visible = 14
 var scroll_jump = 4
 var autoscroll = false
-func _process(delta):
+func _process(_delta):
 	# update scrollbar
 	var lines_count = GDNShell.get_lines_count()
 	scrollbar.max_value = lines_count - lines_visible
@@ -61,7 +61,10 @@ func _input(event):
 	if Input.is_action_just_pressed("debug_back"):
 		GDNShell.step_back()
 	if Input.is_action_just_pressed("debug_pause_resume"):
-		GDNShell.resume() if GDNShell.is_paused else GDNShell.pause()
+		if GDNShell.is_paused:
+			GDNShell.resume()
+		else:
+			GDNShell.pause()
 	
 	# scroll when mouse is over the box
 	if Rect2(Vector2(), rect_size).has_point(get_local_mouse_position()):

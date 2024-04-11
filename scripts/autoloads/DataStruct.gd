@@ -32,9 +32,9 @@ func new(type, value, display_formatting = null, data_offset = -1, schema_index 
 			size = 1
 		"u16","i16":
 			size = 2
-		"u32","i32":
+		"u32","i32","p32":
 			size = 4
-		"u64","i64":
+		"u64","i64","p64":
 			size = 8
 	if type.begins_with("grid"):
 		size = type.to_int() * 51984
@@ -44,6 +44,8 @@ func new(type, value, display_formatting = null, data_offset = -1, schema_index 
 	elif type.begins_with("str"):
 		size = type.to_int()
 		type = "[char]"
+	elif type.begins_with("p"):
+		type = "addr"
 	
 	var struct = {
 		"type": type,

@@ -1,6 +1,7 @@
 extends Control
 
 # FILE
+onready var OPEN_DIALOG = $OpenDialog
 var file = null
 func open_file(path):
 	if IO.file_exists(path):
@@ -31,6 +32,10 @@ func close_file():
 	asm_chunks = {}
 	CHUNKS_LIST.clear()
 	CHUNKS_DATA.clear()
+func _on_OpenDialog_file_selected(path):
+#	open_file("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe")
+#	open_file("C:/WINDOWS/system32/notepad.exe")
+	open_file(path)
 
 ##### CODING / MAIN PANELs
 var code_height = 0
@@ -91,18 +96,11 @@ func hex_scroll_to(offset, end_offset):
 	# move the view to the line
 	byte_selection = [] # this is to prevent the slider's .value change to accidentally triffer an update!
 	var curr_start_line = HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value
-	var curr_end_line = curr_start_line + hex_view_visible_lines()
-	var relative_start_line = start_line - curr_start_line
-	var relative_end_line = end_line - curr_start_line
+	var curr_end_line = curr_start_line + hex_view_visible_lines() - 1
 	if start_line < curr_start_line:
-		HEXVIEW_SLIDER.value -= relative_start_line
-		relative_end_line -= relative_start_line
-		relative_start_line = 0
+		HEXVIEW_SLIDER.value -= (start_line - curr_start_line)
 	elif end_line > curr_end_line:
-		var diff = end_line - curr_end_line
-		HEXVIEW_SLIDER.value -= diff
-		relative_end_line -= diff
-		relative_start_line -= diff
+		HEXVIEW_SLIDER.value -= (end_line - curr_end_line)
 
 	# update the highlight!
 	byte_selection = [offset, end_offset]
@@ -124,6 +122,7 @@ func update_hex_selection_from_code():
 		HEXVIEW.select(0, columns_to_highlight[0], 0, columns_to_highlight[1])
 	else:
 		HEXVIEW.deselect()
+	update_hex_infobox()
 func update_hex_infobox():
 	HEXVIEW_INFO.text = ""
 	if byte_selection != []:
@@ -135,12 +134,37 @@ func update_hex_infobox():
 		
 		# offset text
 		if end_byte != start_byte:
-			HEXVIEW_INFO.text = "0x%08X-0x%08X" % [start_byte, end_byte]
+			HEXVIEW_INFO.text = "0x%08X-%08X" % [start_byte, end_byte]
 		else:
 			HEXVIEW_INFO.text = "0x%08X" % [start_byte]
-func _on_Bytes_gui_input(event):
+		
+		# int
+		var size = end_byte - start_byte + 1
+#		var decimal = "??"
+#		if size >= 1:
+#			file.seek(start_byte)
+#			decimal = str("int8: ", file.get_8())
+#		if size >= 2:
+#			file.seek(start_byte)
+#			decimal += str(" int16: ", file.get_16())
+#		if size >= 4:
+#			file.seek(start_byte)
+#			decimal += str("\nint32: ", file.get_32())
+#		HEXVIEW_INFO.text += str("\n", decimal)
+		
+		# ascii
+		file.seek(start_byte)
+		var txt = file.get_buffer(size).get_string_from_ascii()
+		var max_chars = 30
+		if txt.length() > max_chars:
+			txt = txt.left(max_chars) + "..."
+		HEXVIEW_INFO.text += str("\n", txt)
+func _on_Bytes_gui_input(_event):
 	# no need to change the highlights from the code here.
 	# the highlights HAVE ALREADY changed from user input, hence why this signal!
+	if Input.is_action_just_pressed("LMB"):
+		HEXVIEW.deselect()
+		byte_selection = []
 	if Input.is_action_pressed("LMB") || Input.is_action_just_released("LMB"):
 		if file == null:
 			byte_selection = []
@@ -159,6 +183,7 @@ func _on_Bytes_gui_input(event):
 					HEXVIEW.get_selection_from_column() / 3 + line_byte_offset,
 					HEXVIEW.get_selection_to_column() / 3 + 1 + line_byte_offset,
 				]
+			update_hex_infobox()
 			if Input.is_action_just_released("LMB"):
 				update_hex_selection_from_code()
 func _on_VScrollBarHexView_scrolling():
@@ -229,7 +254,7 @@ func read_asm_chunks():
 				"Machine": file.read("u16", 1, "0x%04X"),
 				"NumberOfSections": file.read("u16"),
 				"TimeDateStamp": file.read("u32"),
-				"PointerToSymbolTable": file.read("u32", -1, "0x%08X"),
+				"PointerToSymbolTable": file.read("p32"),
 				"NumberOfSymbols": file.read("u32"),
 				"SizeOfOptionalHeader": file.read("u16"),
 				"Characteristics": file.read("i16")
@@ -242,9 +267,9 @@ func read_asm_chunks():
 				"SizeOfCode": file.read("u32"),
 				"SizeOfInitializedData": file.read("u32"),
 				"SizeOfUninitializedData": file.read("u32"),
-				"AddressOfEntryPoint": file.read("u32", -1, "0x%08X"),
-				"BaseOfCode": file.read("u32", -1, "0x%08X"),
-				"ImageBase": file.read("u64", -1, "0x%016X"),
+				"AddressOfEntryPoint": file.read("p32"),
+				"BaseOfCode": file.read("p32"),
+				"ImageBase": file.read("p64"),
 				"SectionAlignment": file.read("u32"),
 				"FileAlignment": file.read("u32"),
 				"MajorOperatingSystemVersion": file.read("i16"),
@@ -268,32 +293,29 @@ func read_asm_chunks():
 				"DataDirectory": []
 			}
 		}
-		for i in range(0,16):
+		for _i in range(0,16):
 			asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory.push_back({
 				"offset": file.get_position(),
-				"VirtualAddress": file.read("u32", -1, "0x%08X"),
+				"VirtualAddress": file.read("p32"),
 				"Size": file.read("u32")
 			})
-		print(asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSections.value)
-#		asm_chunks["_SECTIONS"] = []
-		for i in range(0,asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSections.value):
+		asm_chunks["_SECTIONS"] = {}
+		for _i in range(0,asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSections.value):
 			var section = {
 				"offset": file.get_position(),
 				"Name": file.read("str8"),
 				"Misc": file.read("u32"),
-				"VirtualAddress": file.read("u32", -1, "0x%08X"),
+				"VirtualAddress": file.read("p32"),
 				"SizeOfRawData": file.read("u32"),
-				"PointerToRawData": file.read("u32", -1, "0x%08X"),
-				"PointerToRelocations": file.read("u32", -1, "0x%08X"),
-				"PointerToLinenumbers": file.read("u32", -1, "0x%08X"),
+				"PointerToRawData": file.read("p32"),
+				"PointerToRelocations": file.read("p32"),
+				"PointerToLinenumbers": file.read("p32"),
 				"NumberOfRelocations": file.read("u16"),
 				"NumberOfLinenumbers": file.read("u16"),
 				"Characteristics": file.read("i32"),
 			}
 			var section_name = DataStruct.as_text(section.Name)
-			asm_chunks[section_name] = section
-#			asm_chunks["_SECTIONS"][section_name] = section
-#			asm_chunks["_SECTIONS"].push_back(section)
+			asm_chunks["_SECTIONS"][section_name] = section
 #		assert(file.get_position() == asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.SizeOfHeaders.value)
 		
 		fill_ChunkTable()
@@ -304,22 +326,21 @@ func fill_ChunkTable():
 	DataStruct.schema_items_names = {}
 	DataStruct.record_schema_names_recursive(CHUNKS_LIST.get_root().get_children())
 func recursive_fill_ChunkTable(item, parent, itemname):
-	# add the current one to the list
+	# create a new table item and determine its name & name-based params
 	var table_item = null
 	if itemname != null:
 		table_item = CHUNKS_LIST.create_item(parent)
 		table_item.collapsed = true
-#		table_item.set_metadata(0, [itemname,item])
 		if itemname.begins_with("unk"):
 			itemname = "??"
 			table_item.set_custom_color(0, Color(1,1,1,0.3))
 		elif itemname.begins_with("unused"):
 			table_item.set_custom_color(0, Color(1,0.7,0.7,0.5))
-#			table_item.set_custom_color(0, Color(1,1,1,0.3))
+		if itemname == "_SECTIONS":
+			table_item.collapsed = false
 	
+	# determine the object size, recursively going through the childs if necessary
 	var total_bytes = 0
-	
-	# follow through the childs
 	if DataStruct.is_valid(item):
 		total_bytes += item.size
 	else:
@@ -334,6 +355,7 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 			for e in item.size():
 				total_bytes += recursive_fill_ChunkTable(item[e], table_item, str("[",e,"]"))
 	
+	# set item name & size
 	if itemname != null:
 		if item is Dictionary && "compressed_size" in item:
 			table_item.set_text(0, str(itemname," (",total_bytes,") **"))
@@ -341,6 +363,12 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 		else:
 			table_item.set_text(0, str(itemname," (",total_bytes,")"))
 	
+		if item is Dictionary && item.has("type") && item.type == "addr":
+			table_item.set_custom_color(0, Color(0.0,0.4,0.8))
+		
+	
+	# add metadata to the first cell:
+	# name text, data obj (reference), total obj size in bytes
 	if table_item != null:
 		table_item.set_metadata(0, [itemname,item,total_bytes])
 	return total_bytes
@@ -365,6 +393,12 @@ func _on_ChunkTable_cell_selected():
 	# found a valid offset?
 	if offset != null:
 		hex_scroll_to(offset, offset + metadata[2])
+func _on_ChunkTable_item_activated():
+	var selection = CHUNKS_LIST.get_selected()
+	var metadata = selection.get_metadata(0)
+	var data = metadata[1]
+	if data is Dictionary && "type" in data && data.type == "addr":
+		hex_scroll_to(data.value, data.value + 4)
 
 # asm / disassembler
 onready var ASM = $VSplitContainer/Main/Code/Asm
@@ -420,9 +454,8 @@ onready var BTN_STOP = $Top/Buttons/HBoxContainer3/BtnStop
 onready var BTN_PAUSE = $Top/Buttons/HBoxContainer/BtnBreak
 onready var BTN_STEP_BACK = $Top/Buttons/HBoxContainer/BtnBack
 onready var BTN_STEP_FORWARD = $Top/Buttons/HBoxContainer/BtnStep
-func _process(delta):
+func _process(_delta):
 	log_do_scroll()
-	update_hex_infobox()
 	FPS.text = str(Engine.get_frames_per_second(), " FPS")
 	
 	# has file open?
@@ -461,7 +494,7 @@ func _process(delta):
 	else:
 		BTN_PAUSE.text = "Break"
 
-func _input(event):
+func _input(_event):
 	if Input.is_action_just_pressed("debug_start"):
 		GDNShell.start()
 	if Input.is_action_just_pressed("debug_stop"):
@@ -476,7 +509,7 @@ func _input(event):
 	update_code_panel_height()
 
 func _on_BtnOpen_pressed():
-	open_file("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe")
+	OPEN_DIALOG.popup_centered()
 func _on_BtnSave_pressed():
 	pass # Replace with function body.
 func _on_BtnClose_pressed():
@@ -500,3 +533,4 @@ func _on_BtnStep_pressed():
 
 func _on_Input_text_entered(new_text):
 	GDNShell.send_string(new_text)
+

@@ -502,16 +502,21 @@ func _on_VSlider_asm_scrolled():
 # bottom-right log window
 var logger_lines = 0
 var logger_autoscroll = true
-onready var LOG_BOX = $VSplitContainer/Footer/LogPrinter
+onready var LOG_BOX = $VSplitContainer/Footer/LogPrinter/Text
 func log_do_scroll():
 	if Log.LOG_CHANGED:
-		LOG_BOX.text = ""
+		LOG_BOX.bbcode_text = ""
 		logger_lines = Log.LOG_EVERYTHING.size()
 		for l in Log.LOG_EVERYTHING:
-			LOG_BOX.text += l + "\n"
+			LOG_BOX.bbcode_text += l + "\n"
 		if logger_autoscroll:
-			LOG_BOX.scroll_vertical = logger_lines-1
+			LOG_BOX.scroll_to_line(logger_lines - 1)
 		Log.LOG_CHANGED = false
+func clear_log():
+	Log.LOG_EVERYTHING = []
+	Log.LOG_ENGINE = []
+	Log.LOG_ERRORS = []
+	LOG_BOX.bbcode_text = "Log cleared."
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -520,7 +525,7 @@ func _ready():
 	GDNShell.root_node = self
 	GDNShell.terminal_node = CONSOLE_TERMINAL
 	GDNShell.GDN_INIT()
-	LOG_BOX.text = ""
+	LOG_BOX.bbcode_text = ""
 	GDNShell.clear()
 	close_file()
 
@@ -535,6 +540,7 @@ onready var BTN_STOP = $Top/Buttons/HBoxContainer3/BtnStop
 onready var BTN_PAUSE = $Top/Buttons/HBoxContainer/BtnBreak
 onready var BTN_STEP_BACK = $Top/Buttons/HBoxContainer/BtnBack
 onready var BTN_STEP_FORWARD = $Top/Buttons/HBoxContainer/BtnStep
+onready var BTN_VISIBLE_PROGRAM = $Top/Buttons/Control/BtnVisibleProgram
 func _process(_delta):
 	log_do_scroll()
 	FPS.text = str(Engine.get_frames_per_second(), " FPS")
@@ -548,8 +554,9 @@ func _process(_delta):
 		BTN_RUN.disabled = true
 		BTN_STOP.disabled = true
 	
-	# has an active child process?
-	if GDNShell.has_started_process_attached(): # process attached
+	# has an active child process running?
+	if GDNShell.has_started_process_attached():
+		BTN_VISIBLE_PROGRAM.disabled = true
 		BTN_STOP.disabled = false
 		BTN_PAUSE.disabled = false
 		BTN_STEP_BACK.disabled = false
@@ -563,6 +570,7 @@ func _process(_delta):
 			BTN_STEP_BACK.disabled = true
 			BTN_STEP_FORWARD.disabled = true
 	else: # no process / stopped
+		BTN_VISIBLE_PROGRAM.disabled = false
 		BTN_STOP.disabled = true
 		CONSOLE_TERMINAL.readonly = true
 		BTN_PAUSE.disabled = true
@@ -582,10 +590,6 @@ func _input(_event):
 		GDNShell.stop()
 	if Input.is_action_just_pressed("clear_console"):
 		GDNShell.clear()
-		Log.LOG_EVERYTHING = []
-		Log.LOG_ENGINE = []
-		Log.LOG_ERRORS = []
-		LOG_BOX.text = "Log cleared."
 	
 	update_code_panel_height()
 
@@ -617,3 +621,9 @@ func _on_Input_text_entered(new_text):
 
 func _on_viewport_size_changed():
 	update_code_panel_height()
+
+func _on_BtnClearLog_pressed():
+	clear_log()
+
+func _on_BtnVisibleProgram_toggled(button_pressed):
+	GDNShell.hidden_process_window = !button_pressed

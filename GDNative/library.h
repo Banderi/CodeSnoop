@@ -19,7 +19,7 @@ namespace godot {
         GDNShell();
         ~GDNShell();
 
-        void spawn(String path);
+        int spawn(String path, bool hidden = false);
         bool send_string(String string);
 //        int get_process_status();
 //        bool is_waiting_for_input();

@@ -96,7 +96,7 @@ void clear_history() {
     history_lines = 0;
 }
 
-void GDNShell::spawn(String path) {
+int GDNShell::spawn(String path, bool hidden) {
     simpleDebugPrint("--> GDNShell::spawn CALL");
     simpleDebugPrint("GDNShell::spawn 1");
 
@@ -109,7 +109,7 @@ void GDNShell::spawn(String path) {
         !CreatePipe(&hInputRead, &hInputWrite, &sa, 0))
     {
         PrintErr("Failed to create pipes.");
-        return;
+        return GetLastError();
     }
 
     STARTUPINFO si = { sizeof(STARTUPINFO) };
@@ -122,14 +122,17 @@ void GDNShell::spawn(String path) {
     si.hStdInput = hInputRead;
 
     // Set the window style to hide the child process window
-//    si.dwFlags |= STARTF_USESHOWWINDOW;
-//    si.wShowWindow = SW_HIDE;
+    if (hidden) {
+        si.dwFlags |= STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+    }
 
     // Create the child process
     if (!CreateProcess(nullptr, path.alloc_c_string(), nullptr, nullptr, TRUE, CREATE_SUSPENDED, nullptr, nullptr, &si, &pi))
     {
         PrintErr("Failed to create process.");
-        return;
+        return GetLastError();
+        auto a = ERROR_INVALID_FUNCTION;
     }
     simpleDebugPrint("GDNShell::spawn 3");
 
@@ -139,7 +142,7 @@ void GDNShell::spawn(String path) {
         PrintErr("Failed to assign child process to job object.");
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
-        return;
+        return GetLastError();
     }
     simpleDebugPrint("GDNShell::spawn 4");
 
@@ -199,6 +202,7 @@ void GDNShell::spawn(String path) {
     CloseHandle(pi.hThread);
     emit_signal("child_process_stopped");
     simpleDebugPrint("<-- GDNShell::spawn RET");
+    return 0;
 }
 bool GDNShell::send_string(String string) {
     char *s = string.alloc_c_string();

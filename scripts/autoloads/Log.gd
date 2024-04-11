@@ -12,7 +12,11 @@ func limit_array(arr, limit = MAX_LINES_IN_CONSOLE):
 		arr.pop_front()
 
 func get_enum_string(enums, value):
-	return enums.keys()[value]
+	var e = value
+	var keys = enums.keys()
+	while enums[keys[e]] != value && enums[keys[e]] > value:
+		e -= 1
+	return keys[e]
 func get_timestamp(from):
 	var d = OS.get_datetime()
 	var date = "%04d/%02d/%02d %02d:%02d:%02d" % [d.year, d.month, d.day, d.hour, d.minute, d.second]
@@ -34,10 +38,13 @@ func generic(from, text):
 		limit_array(LOG_ENGINE)
 	print(msg)
 	LOG_CHANGED = true
-func error(from, err, text):
+func error(from, err, text, windows_errors = false):
 	var msg = str(get_timestamp(from), "ERROR: ", text)
 	if err != null:
-		msg += str(" (", err, ":", get_enum_string(GlobalScope.Error, err), ")")
+		if windows_errors:
+			msg += str(" (", err, ":", get_enum_string(GlobalScope.WinError, err), ")")
+		else:
+			msg += str(" (", err, ":", get_enum_string(GlobalScope.Error, err), ")")
 
 	var bb_msg = str("[color=#ee1100]", msg, "[/color]")
 	LOG_EVERYTHING.push_back(bb_msg)

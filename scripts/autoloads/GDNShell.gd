@@ -40,13 +40,17 @@ func GDN_INIT():
 func _THREAD_SUBROUTINE(cmd):
 	# this will internally loop and update, function will resume on close
 	Log.generic(self, str(":: Entering thread ", shell_thread.get_id()))
-	GDNSHELL.spawn(cmd)
+	var r = GDNSHELL.spawn(cmd, hidden_process_window)
+	if r != 0:
+		Log.error(self, r, "Could not start process!", true)
+		
 
 	# cleanup thread
 	is_stopping = true
 	Log.generic(self, str(":: Exiting thread ", shell_thread.get_id()))
 
 var shell_cmd = null
+var hidden_process_window = false
 func start():
 	assert(GDNSHELL != null)
 	if shell_cmd == null:

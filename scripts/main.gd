@@ -1,5 +1,22 @@
 extends Control
 
+var bytestream = StreamPeerBuffer.new()
+var regex = RegEx.new()
+func value_as_ascii(v, escape = false, only_ascii = true):
+	bytestream.data_array = [v]
+	var c = bytestream.data_array.get_string_from_ascii()
+	if escape:
+		return c.c_escape()
+	else:
+		if only_ascii:
+			regex.compile("[ -~]")
+			var r = regex.search(c)
+			if r:
+				return r.get_string()
+			else:
+				return ""
+		else:
+			return c
 # FILE
 onready var OPEN_DIALOG = $OpenDialog
 var file = null
@@ -12,6 +29,7 @@ func open_file(path):
 			GDNShell.shell_cmd = path
 			
 			# hex view
+			byte_selection = []
 			update_hex_scrollbar_size()
 			update_hex_view()
 			HEXVIEW_SLIDER.value = HEXVIEW_SLIDER.max_value
@@ -48,21 +66,36 @@ func update_code_panel_height():
 		update_hex_view()
 
 # hex view panel
-onready var HEXVIEW = $VSplitContainer/Main/Hex/Top/Bytes
+onready var HEXVIEW_BYTES = $VSplitContainer/Main/Hex/Top/Bytes
+onready var HEXVIEW_ASCII = $VSplitContainer/Main/Hex/Top/Ascii
 onready var HEXVIEW_SLIDER = $VSplitContainer/Main/Hex/Top/VSlider
 onready var HEXVIEW_ADDRESS = $VSplitContainer/Main/Hex/Top/Offsets
 onready var HEXVIEW_INFO = $VSplitContainer/Main/Hex/Info
+onready var HEXVIEW = HEXVIEW_BYTES
 var byte_selection = []
 var just_scrolled = false
 func hex_view_visible_lines():
 	return floor(code_height / (16 + HEXVIEW.get("custom_constants/line_spacing"))) - 4
 func update_hex_scrollbar_size():
 	if file != null:
+		# remember the previous relative position/scroll percentage
+		var perc = float(HEXVIEW_SLIDER.value) / float(HEXVIEW_SLIDER.max_value)
 		HEXVIEW_SLIDER.editable = true
 		var file_length = file.get_len()
-		var lines_count = ceil(float(file_length) / 8.0)
-		var line_start = lines_count - hex_view_visible_lines()
-		HEXVIEW_SLIDER.max_value = line_start
+		if HEXVIEW == HEXVIEW_BYTES:
+			var lines_count = ceil(float(file_length) / 8.0)
+			var line_start = lines_count - hex_view_visible_lines()
+			HEXVIEW_SLIDER.max_value = line_start
+		elif HEXVIEW == HEXVIEW_ASCII:
+			var lines_count = ceil(float(file_length) / 24.0)
+			var line_start = lines_count - hex_view_visible_lines()
+			HEXVIEW_SLIDER.max_value = line_start
+		HEXVIEW_SLIDER.value = perc * float(HEXVIEW_SLIDER.max_value)
+		
+		# for some reason, the above... breaks? if the view is all the way at the bottom of the file.
+		# soooo...
+		HEXVIEW_SLIDER.value += 1
+		HEXVIEW_SLIDER.value -= 1
 	else:
 		HEXVIEW_SLIDER.value = HEXVIEW_SLIDER.max_value
 		HEXVIEW_SLIDER.editable = false
@@ -70,20 +103,42 @@ func update_hex_view():
 	var temp_offsets = ""
 	var temp_bytes = ""
 	if file != null:
-		var byte_start = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 8
-		var byte_length = min(8 * hex_view_visible_lines(), file.get_len() - byte_start)
-		file.seek(byte_start)
-		var buffer = file.get_buffer(byte_length)
-		var l = 0
-		var b = 0
-		temp_offsets += "%08X" % [byte_start]
-		for byte in buffer:
-			temp_bytes += str("%02X " % [byte])
-			b += 1
-			if b >= 8 && l < hex_view_visible_lines() - 1:
-				b = 0
-				l += 1
-				temp_offsets += "\n%08X" % [byte_start + l * 8 + b]
+		if HEXVIEW == HEXVIEW_BYTES:
+			var byte_start = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 8
+			var byte_length = min(8 * hex_view_visible_lines(), file.get_len() - byte_start)
+			file.seek(byte_start)
+			var buffer = file.get_buffer(byte_length)
+			var l = 0
+			var b = 0
+			temp_offsets += "%08X" % [byte_start]
+			for byte in buffer:
+				temp_bytes += str("%02X " % [byte])
+				b += 1
+				if b >= 8 && l < hex_view_visible_lines() - 1:
+					b = 0
+					l += 1
+					temp_offsets += "\n%08X" % [byte_start + l * 8 + b]
+		elif HEXVIEW == HEXVIEW_ASCII:
+			var byte_start = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 24
+			var byte_length = min(24 * hex_view_visible_lines(), file.get_len() - byte_start)
+			file.seek(byte_start)
+			var buffer = file.get_buffer(byte_length)
+			var l = 0
+			var b = 0
+			temp_offsets += "%08X" % [byte_start]
+			for byte in buffer:
+				var c = value_as_ascii(byte)
+				if c == "":
+					c = "."
+				if c == " ":
+					c = " " # <-- U+00A0 (no-break space)
+				temp_bytes += str(c)
+				b += 1
+				if b >= 24 && l < hex_view_visible_lines() - 1:
+					b = 0
+					l += 1
+					temp_offsets += "\n%08X" % [byte_start + l * 24 + b]
+		
 	HEXVIEW.text = temp_bytes
 	HEXVIEW_ADDRESS.text = temp_offsets
 	update_hex_selection_from_code()
@@ -113,10 +168,16 @@ func update_hex_selection_from_code():
 				byte_selection[0],
 				byte_selection[0]+1
 			]
-		var curr_start_byte = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 8 * 3
-		var start = byte_selection[0] * 3 - curr_start_byte
-		var end = byte_selection[1] * 3 - 1 - curr_start_byte
-		columns_to_highlight = [start, end]
+		if HEXVIEW == HEXVIEW_BYTES:
+			var curr_start_byte = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 8 * 3
+			var start = byte_selection[0] * 3 - curr_start_byte
+			var end = byte_selection[1] * 3 - 1 - curr_start_byte
+			columns_to_highlight = [start, end]
+		elif HEXVIEW == HEXVIEW_ASCII:
+			var curr_start_byte = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 24
+			var start = byte_selection[0] - curr_start_byte
+			var end = byte_selection[1] - curr_start_byte
+			columns_to_highlight = [start, end]
 	
 	if columns_to_highlight != []:
 		HEXVIEW.select(0, columns_to_highlight[0], 0, columns_to_highlight[1])
@@ -125,7 +186,7 @@ func update_hex_selection_from_code():
 	update_hex_infobox()
 func update_hex_infobox():
 	HEXVIEW_INFO.text = ""
-	if byte_selection != []:
+	if file != null && byte_selection != []:
 		# byte offsets
 		var start_byte = byte_selection[0]
 		var end_byte = start_byte
@@ -140,25 +201,19 @@ func update_hex_infobox():
 		
 		# int
 		var size = end_byte - start_byte + 1
-#		var decimal = "??"
-#		if size >= 1:
-#			file.seek(start_byte)
-#			decimal = str("int8: ", file.get_8())
-#		if size >= 2:
-#			file.seek(start_byte)
-#			decimal += str(" int16: ", file.get_16())
-#		if size >= 4:
-#			file.seek(start_byte)
-#			decimal += str("\nint32: ", file.get_32())
-#		HEXVIEW_INFO.text += str("\n", decimal)
-		
-		# ascii
-		file.seek(start_byte)
-		var txt = file.get_buffer(size).get_string_from_ascii()
-		var max_chars = 30
-		if txt.length() > max_chars:
-			txt = txt.left(max_chars) + "..."
-		HEXVIEW_INFO.text += str("\n", txt)
+		var decimal = "??"
+		if size >= 1:
+			file.seek(start_byte)
+			var d = file.get_8()
+			var c = value_as_ascii(d)
+			decimal = str("int8: ", d, " char: ", c)
+		if size >= 2:
+			file.seek(start_byte)
+			decimal += str("\nint16: ", file.get_16())
+		if size >= 4:
+			file.seek(start_byte)
+			decimal += str(" int32: ", file.get_32())
+		HEXVIEW_INFO.text += str("\n", decimal)
 func _on_Bytes_gui_input(_event):
 	# no need to change the highlights from the code here.
 	# the highlights HAVE ALREADY changed from user input, hence why this signal!
@@ -170,25 +225,50 @@ func _on_Bytes_gui_input(_event):
 			byte_selection = []
 		else:
 			var curr_start_line = HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value
-			var line_byte_offset = curr_start_line * 8
-			if !HEXVIEW.is_selection_active():
-				var clicked_byte = (HEXVIEW.cursor_get_column() / 3)
-				var sel_column = clicked_byte * 3
-				HEXVIEW.select(0, sel_column, 0, sel_column + 2)
-				byte_selection = [
-					clicked_byte + line_byte_offset
-				]
-			else:
-				byte_selection = [
-					HEXVIEW.get_selection_from_column() / 3 + line_byte_offset,
-					HEXVIEW.get_selection_to_column() / 3 + 1 + line_byte_offset,
-				]
+			if HEXVIEW == HEXVIEW_BYTES:
+				var line_byte_offset = curr_start_line * 8
+				if !HEXVIEW.is_selection_active():
+					var clicked_byte = (HEXVIEW.cursor_get_column() / 3)
+					var sel_column = clicked_byte * 3
+					HEXVIEW.select(0, sel_column, 0, sel_column + 2)
+					byte_selection = [
+						clicked_byte + line_byte_offset
+					]
+				else:
+					byte_selection = [
+						HEXVIEW.get_selection_from_column() / 3 + line_byte_offset,
+						HEXVIEW.get_selection_to_column() / 3 + 1 + line_byte_offset,
+					]
+			elif HEXVIEW == HEXVIEW_ASCII:
+				var line_byte_offset = curr_start_line * 24
+				if !HEXVIEW.is_selection_active():
+					var clicked_byte = (HEXVIEW.cursor_get_column())
+					var sel_column = clicked_byte
+					HEXVIEW.select(0, sel_column, 0, sel_column)
+					byte_selection = [
+						clicked_byte + line_byte_offset
+					]
+				else:
+					byte_selection = [
+						HEXVIEW.get_selection_from_column() + line_byte_offset,
+						HEXVIEW.get_selection_to_column() + line_byte_offset,
+					]
 			update_hex_infobox()
 			if Input.is_action_just_released("LMB"):
 				update_hex_selection_from_code()
 func _on_VScrollBarHexView_scrolling():
 	just_scrolled = true
 	update_hex_view()
+func _on_AsciiMode_toggled(button_pressed):
+	HEXVIEW.hide()
+	if button_pressed:
+		HEXVIEW = HEXVIEW_ASCII
+	else:
+		HEXVIEW = HEXVIEW_BYTES
+	HEXVIEW.show()
+	update_hex_view()
+	update_hex_scrollbar_size()
+
 
 enum PE_SIGNATURE {
 	WIN32 = int("PE"),
@@ -435,6 +515,7 @@ func log_do_scroll():
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
+	get_tree().root.connect("size_changed", self, "_on_viewport_size_changed")
 	Log.generic(null, "Initializing...")
 	GDNShell.root_node = self
 	GDNShell.terminal_node = CONSOLE_TERMINAL
@@ -534,3 +615,5 @@ func _on_BtnStep_pressed():
 func _on_Input_text_entered(new_text):
 	GDNShell.send_string(new_text)
 
+func _on_viewport_size_changed():
+	update_code_panel_height()

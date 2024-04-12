@@ -1,5 +1,6 @@
 extends Control
 
+# regex & ascii conversion
 var bytestream = StreamPeerBuffer.new()
 var regex = RegEx.new()
 func value_as_ascii(v, escape = false, only_ascii = true):
@@ -17,6 +18,7 @@ func value_as_ascii(v, escape = false, only_ascii = true):
 				return ""
 		else:
 			return c
+
 # FILE
 onready var OPEN_DIALOG = $OpenDialog
 var file = null
@@ -51,8 +53,6 @@ func close_file():
 	CHUNKS_LIST.clear()
 	CHUNKS_DATA.clear()
 func _on_OpenDialog_file_selected(path):
-#	open_file("E:/Git/CppTestApp/cmake-build-debug/CppTestApp.exe")
-#	open_file("C:/WINDOWS/system32/notepad.exe")
 	open_file(path)
 
 ##### CODING / MAIN PANELs
@@ -520,7 +520,9 @@ func clear_log():
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	get_tree().root.connect("size_changed", self, "_on_viewport_size_changed")
+	var _r
+	_r = get_viewport().connect("gui_focus_changed", self, "_on_focus_change_intercept")
+	_r = get_tree().root.connect("size_changed", self, "_on_viewport_size_changed")
 	Log.generic(null, "Initializing...")
 	GDNShell.root_node = self
 	GDNShell.terminal_node = CONSOLE_TERMINAL
@@ -531,7 +533,7 @@ func _ready():
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 onready var CONSOLE_TERMINAL = $VSplitContainer/Footer/Console/Terminal
-onready var FPS = $FPS
+onready var FPS = $Top/FPS
 onready var BTN_OPEN = $Top/Buttons/HBoxContainer2/BtnOpen
 onready var BTN_CLOSE = $Top/Buttons/HBoxContainer2/BtnClose
 onready var BTN_SAVE = $Top/Buttons/HBoxContainer2/BtnSave
@@ -593,6 +595,24 @@ func _input(_event):
 	
 	update_code_panel_height()
 
+func _on_focus_change_intercept(node):
+	if node != BTN_RECENT && node.get_parent() != BTN_RECENT_LIST:
+		close_recent_dropdown()
+
+func _on_viewport_size_changed():
+	update_code_panel_height()
+
+onready var BTN_RECENT = $Top/Buttons/HBoxContainer2/BtnRecent
+onready var BTN_RECENT_LIST = $Top/ItemList
+func close_recent_dropdown():
+	BTN_RECENT.pressed = false
+	BTN_RECENT_LIST.hide()
+func _on_BtnRecent_toggled(button_pressed):
+	BTN_RECENT_LIST.visible = button_pressed
+func _on_BtnRecentFile_pressed(path):
+	close_recent_dropdown()
+	open_file(path)
+
 func _on_BtnOpen_pressed():
 	OPEN_DIALOG.popup_centered()
 func _on_BtnSave_pressed():
@@ -616,14 +636,12 @@ func _on_BtnBack_pressed():
 func _on_BtnStep_pressed():
 	GDNShell.step_forward()
 
-func _on_Input_text_entered(new_text):
-	GDNShell.send_string(new_text)
-
-func _on_viewport_size_changed():
-	update_code_panel_height()
-
 func _on_BtnClearLog_pressed():
 	clear_log()
 
 func _on_BtnVisibleProgram_toggled(button_pressed):
 	GDNShell.hidden_process_window = !button_pressed
+
+
+
+

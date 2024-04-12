@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=2]
+[gd_scene load_steps=15 format=2]
 
 [ext_resource path="res://scripts/main.gd" type="Script" id=1]
 [ext_resource path="res://TerminalBox.tres" type="StyleBox" id=2]
@@ -9,7 +9,6 @@
 [ext_resource path="res://scripts/VSliderInput.gd" type="Script" id=7]
 [ext_resource path="res://HexView.tres" type="StyleBox" id=8]
 [ext_resource path="res://AsciiView.tres" type="StyleBox" id=9]
-[ext_resource path="res://fonts/basis33_ascii_spaced.tres" type="DynamicFont" id=10]
 [ext_resource path="res://scenes/BtnRecentFile.tscn" type="PackedScene" id=11]
 
 [sub_resource type="StyleBoxFlat" id=6]
@@ -72,7 +71,7 @@ size_flags_vertical = 3
 [node name="Top" type="Control" parent="VSplitContainer/Main/Hex"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_bottom = -51.0
+margin_bottom = -43.0
 
 [node name="Offsets" type="TextEdit" parent="VSplitContainer/Main/Hex/Top"]
 anchor_right = 1.0
@@ -164,22 +163,6 @@ readonly = true
 wrap_enabled = true
 caret_blink = true
 
-[node name="Ascii2" type="TextEdit" parent="VSplitContainer/Main/Hex/Top"]
-visible = false
-anchor_right = 1.0
-anchor_bottom = 1.0
-margin_left = 75.0
-margin_right = 4.0
-custom_constants/line_spacing = -1
-custom_fonts/font = ExtResource( 10 )
-custom_styles/read_only = ExtResource( 9 )
-custom_styles/focus = ExtResource( 9 )
-custom_styles/normal = ExtResource( 9 )
-text = "50 45 00 00 64 86 13 00 10 2A 71 64 00 24 01 00 7B 05 00 00 F0 00 26 00 0B 02 02 25 00 26 00 00 00 56 00 00 00 02 00 00 25 11 00 00 00 10 00 00 00 00 00 40 01 00 00 00 00 10 00 00 00 02 00 00 04 00 00 00 00 00 00 00 05 00 02 00 00 00 00 00 00 10 02 00 00 06 00 00 1B 47 02 00 03 00 60 01 00 00 20 00 00 00 00 00 00 10 00 00 00 00 00 00 00 00 10 00 00 00 00 00 00 10 00 00 00 00 00 00 00 00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 B0 00 00 9C 0A 00 00 00 00 00 00 00 00 00 00 00 80 00 00 B8 02 00 00 00 00 00 00 00 00 00 00 00 E0 00 00 8C 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 20 51 00 00 28 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 64 B2 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
-readonly = true
-wrap_enabled = true
-caret_blink = true
-
 [node name="Bleed" type="ColorRect" parent="VSplitContainer/Main/Hex/Top"]
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -193,14 +176,26 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = -12.0
 margin_right = 4.0
+margin_bottom = -6.0
 value = 50.0
 script = ExtResource( 7 )
 
-[node name="Info" type="TextEdit" parent="VSplitContainer/Main/Hex"]
-anchor_top = 1.0
+[node name="Info" type="Control" parent="VSplitContainer/Main/Hex"]
+anchor_top = 0.94
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_top = -49.0
+margin_top = 0.139954
+rect_min_size = Vector2( 260, 49 )
+
+[node name="Control" type="Control" parent="VSplitContainer/Main/Hex/Info"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+rect_clip_content = true
+
+[node name="Txt" type="TextEdit" parent="VSplitContainer/Main/Hex/Info/Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_bottom = 315.0
 size_flags_horizontal = 3
 custom_constants/line_spacing = -1
 custom_fonts/font = ExtResource( 4 )
@@ -214,10 +209,10 @@ readonly = true
 [node name="AsciiMode" type="CheckButton" parent="VSplitContainer/Main/Hex/Info"]
 anchor_left = 1.0
 anchor_right = 1.0
-margin_left = -90.0
-margin_top = -6.0
-margin_right = 9.0
-margin_bottom = 34.0
+margin_left = -106.0
+margin_top = -14.0
+margin_right = -7.0
+margin_bottom = 26.0
 focus_mode = 0
 text = "Txt"
 clip_text = true
@@ -244,7 +239,6 @@ size_flags_stretch_ratio = 2.0
 custom_constants/vseparation = -1
 custom_constants/draw_relationship_lines = 1
 custom_fonts/font = ExtResource( 4 )
-hide_root = true
 
 [node name="Data" type="Tree" parent="VSplitContainer/Main/Code/Chunks"]
 margin_top = 552.0
@@ -656,9 +650,11 @@ access = 2
 filters = PoolStringArray( "*.exe", "*.dll", "*.sys" )
 show_hidden_files = true
 
+[connection signal="dragged" from="VSplitContainer" to="." method="_on_VSplitContainer_dragged"]
+[connection signal="cursor_changed" from="VSplitContainer/Main/Hex/Top/Bytes" to="." method="_on_Bytes_cursor_changed"]
 [connection signal="gui_input" from="VSplitContainer/Main/Hex/Top/Bytes" to="." method="_on_Bytes_gui_input"]
+[connection signal="cursor_changed" from="VSplitContainer/Main/Hex/Top/Ascii" to="." method="_on_Bytes_cursor_changed"]
 [connection signal="gui_input" from="VSplitContainer/Main/Hex/Top/Ascii" to="." method="_on_Bytes_gui_input"]
-[connection signal="gui_input" from="VSplitContainer/Main/Hex/Top/Ascii2" to="." method="_on_Bytes_gui_input"]
 [connection signal="scrolled" from="VSplitContainer/Main/Hex/Top/VSlider" to="." method="_on_VScrollBarHexView_scrolling"]
 [connection signal="value_changed" from="VSplitContainer/Main/Hex/Top/VSlider" to="VSplitContainer/Main/Hex/Top/VSlider" method="_on_VSlider_value_changed"]
 [connection signal="toggled" from="VSplitContainer/Main/Hex/Info/AsciiMode" to="." method="_on_AsciiMode_toggled"]

@@ -4,13 +4,16 @@ extends Control
 var bytestream = StreamPeerBuffer.new()
 var regex = RegEx.new()
 func value_as_ascii(v, escape = false, only_ascii = true):
-	bytestream.data_array = [v]
+	if v is Array || v is PoolByteArray:
+		bytestream.data_array = v
+	else:
+		bytestream.data_array = [v]
 	var c = bytestream.data_array.get_string_from_ascii()
 	if escape:
 		return c.c_escape()
 	else:
 		if only_ascii:
-			regex.compile("[ -~]")
+			regex.compile("[ -~]*")
 			var r = regex.search(c)
 			if r:
 				return r.get_string()
@@ -48,6 +51,7 @@ func populate_recent():
 		BTN_RECENT_LIST.add_child(node)
 		node.connect("open_file", self, "_on_BtnRecentFile_pressed")
 func add_to_recent(path):
+	OPEN_DIALOG.current_path = path
 	if recent_file_list.find(path) != -1: # already in list!
 		if recent_file_list.find(path) == 0: # already on top. no action necessary.
 			return
@@ -123,13 +127,15 @@ func update_code_panel_height():
 		code_height = CODE.rect_size.y
 		update_hex_scrollbar_size()
 		update_hex_view()
+func _on_VSplitContainer_dragged(offset):
+	update_code_panel_height()
 
 # hex view panel
 onready var HEXVIEW_BYTES = $VSplitContainer/Main/Hex/Top/Bytes
 onready var HEXVIEW_ASCII = $VSplitContainer/Main/Hex/Top/Ascii
 onready var HEXVIEW_SLIDER = $VSplitContainer/Main/Hex/Top/VSlider
 onready var HEXVIEW_ADDRESS = $VSplitContainer/Main/Hex/Top/Offsets
-onready var HEXVIEW_INFO = $VSplitContainer/Main/Hex/Info
+onready var HEXVIEW_INFO = $VSplitContainer/Main/Hex/Info/Control/Txt
 onready var HEXVIEW = HEXVIEW_BYTES
 var byte_selection = []
 var just_scrolled = false
@@ -264,7 +270,8 @@ func update_hex_infobox():
 		if size >= 1:
 			file.seek(start_byte)
 			var d = file.get_8()
-			var c = value_as_ascii(d)
+			file.seek(start_byte)
+			var c = value_as_ascii(file.get_buffer(size))
 			decimal = str("int8: ", d, " char: ", c)
 		if size >= 2:
 			file.seek(start_byte)
@@ -273,6 +280,36 @@ func update_hex_infobox():
 			file.seek(start_byte)
 			decimal += str(" int32: ", file.get_32())
 		HEXVIEW_INFO.text += str("\n", decimal)
+func get_byte_offsets_from_selection():
+	var curr_start_line = HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value
+	if HEXVIEW == HEXVIEW_BYTES:
+		var line_byte_offset = curr_start_line * 8
+		if !HEXVIEW.is_selection_active():
+			var clicked_byte = (HEXVIEW.cursor_get_column() / 3)
+			var sel_column = clicked_byte * 3
+			HEXVIEW.select(0, sel_column, 0, sel_column + 2)
+			return [
+				clicked_byte + line_byte_offset
+			]
+		else:
+			return [
+				HEXVIEW.get_selection_from_column() / 3 + line_byte_offset,
+				HEXVIEW.get_selection_to_column() / 3 + 1 + line_byte_offset,
+			]
+	elif HEXVIEW == HEXVIEW_ASCII:
+		var line_byte_offset = curr_start_line * 24
+		if !HEXVIEW.is_selection_active():
+			var clicked_byte = (HEXVIEW.cursor_get_column())
+			var sel_column = clicked_byte
+			HEXVIEW.select(0, sel_column, 0, sel_column)
+			return [
+				clicked_byte + line_byte_offset
+			]
+		else:
+			return [
+				HEXVIEW.get_selection_from_column() + line_byte_offset,
+				HEXVIEW.get_selection_to_column() + line_byte_offset,
+			]
 func _on_Bytes_gui_input(_event):
 	# no need to change the highlights from the code here.
 	# the highlights HAVE ALREADY changed from user input, hence why this signal!
@@ -283,38 +320,45 @@ func _on_Bytes_gui_input(_event):
 		if file == null:
 			byte_selection = []
 		else:
-			var curr_start_line = HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value
-			if HEXVIEW == HEXVIEW_BYTES:
-				var line_byte_offset = curr_start_line * 8
-				if !HEXVIEW.is_selection_active():
-					var clicked_byte = (HEXVIEW.cursor_get_column() / 3)
-					var sel_column = clicked_byte * 3
-					HEXVIEW.select(0, sel_column, 0, sel_column + 2)
-					byte_selection = [
-						clicked_byte + line_byte_offset
-					]
-				else:
-					byte_selection = [
-						HEXVIEW.get_selection_from_column() / 3 + line_byte_offset,
-						HEXVIEW.get_selection_to_column() / 3 + 1 + line_byte_offset,
-					]
-			elif HEXVIEW == HEXVIEW_ASCII:
-				var line_byte_offset = curr_start_line * 24
-				if !HEXVIEW.is_selection_active():
-					var clicked_byte = (HEXVIEW.cursor_get_column())
-					var sel_column = clicked_byte
-					HEXVIEW.select(0, sel_column, 0, sel_column)
-					byte_selection = [
-						clicked_byte + line_byte_offset
-					]
-				else:
-					byte_selection = [
-						HEXVIEW.get_selection_from_column() + line_byte_offset,
-						HEXVIEW.get_selection_to_column() + line_byte_offset,
-					]
+			byte_selection = get_byte_offsets_from_selection()
+#			var curr_start_line = HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value
+#			if HEXVIEW == HEXVIEW_BYTES:
+#				var line_byte_offset = curr_start_line * 8
+#				if !HEXVIEW.is_selection_active():
+#					var clicked_byte = (HEXVIEW.cursor_get_column() / 3)
+#					var sel_column = clicked_byte * 3
+#					HEXVIEW.select(0, sel_column, 0, sel_column + 2)
+#					byte_selection = [
+#						clicked_byte + line_byte_offset
+#					]
+#				else:
+#					byte_selection = [
+#						HEXVIEW.get_selection_from_column() / 3 + line_byte_offset,
+#						HEXVIEW.get_selection_to_column() / 3 + 1 + line_byte_offset,
+#					]
+#			elif HEXVIEW == HEXVIEW_ASCII:
+#				var line_byte_offset = curr_start_line * 24
+#				if !HEXVIEW.is_selection_active():
+#					var clicked_byte = (HEXVIEW.cursor_get_column())
+#					var sel_column = clicked_byte
+#					HEXVIEW.select(0, sel_column, 0, sel_column)
+#					byte_selection = [
+#						clicked_byte + line_byte_offset
+#					]
+#				else:
+#					byte_selection = [
+#						HEXVIEW.get_selection_from_column() + line_byte_offset,
+#						HEXVIEW.get_selection_to_column() + line_byte_offset,
+#					]
 			update_hex_infobox()
 			if Input.is_action_just_released("LMB"):
 				update_hex_selection_from_code()
+func _on_Bytes_cursor_changed():
+	if !just_scrolled:
+		byte_selection = get_byte_offsets_from_selection()
+		update_hex_infobox()
+	else:
+		just_scrolled = false
 func _on_VScrollBarHexView_scrolling():
 	just_scrolled = true
 	update_hex_view()
@@ -460,7 +504,8 @@ func read_asm_chunks():
 		fill_ChunkTable()
 func fill_ChunkTable():
 	CHUNKS_LIST.clear()
-	CHUNKS_LIST.create_item()
+	var root = CHUNKS_LIST.create_item()
+	root.set_text(0, IO.get_file_name(GDNShell.shell_cmd))
 	recursive_fill_ChunkTable(asm_chunks, null, null)
 	DataStruct.schema_items_names = {}
 	DataStruct.record_schema_names_recursive(CHUNKS_LIST.get_root().get_children())
@@ -515,6 +560,8 @@ func _on_ChunkTable_cell_selected():
 	var selection = CHUNKS_LIST.get_selected()
 	var metadata = selection.get_metadata(0)
 	CHUNKS_DATA.clear()
+	if metadata == null:
+		return
 	CHUNKS_DATA.present(metadata[0], metadata[1])
 	
 	# get the chunk offset in memory
@@ -591,6 +638,7 @@ func _ready():
 	LOG_BOX.bbcode_text = ""
 	GDNShell.clear()
 	close_file()
+	update_code_panel_height()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 onready var CONSOLE_TERMINAL = $VSplitContainer/Footer/Console/Terminal
@@ -656,8 +704,6 @@ func _input(_event):
 	if Input.is_action_just_pressed("ui_cancel"):
 		if OPEN_DIALOG.visible:
 			OPEN_DIALOG.hide()
-	
-	update_code_panel_height()
 
 func _on_focus_change_intercept(node):
 	if node != BTN_RECENT && node.get_parent() != BTN_RECENT_LIST:
@@ -694,6 +740,9 @@ func _on_BtnClearLog_pressed():
 
 func _on_BtnVisibleProgram_toggled(button_pressed):
 	GDNShell.hidden_process_window = !button_pressed
+
+
+
 
 
 

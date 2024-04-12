@@ -1,4 +1,5 @@
 extends Node
+# ANTIMONY3 IO MODULE VER. 1.0
 
 # directory IO
 func get_folder_split_path(path):
@@ -8,6 +9,43 @@ func get_folder_split_path(path):
 		return ["", result[0]]
 	result[0] += '/'
 	return result
+func get_file_name(path):
+	return get_folder_split_path(path)[1]
+func dir_contents(path):
+	var dir = Directory.new()
+	var err = dir.open(path)
+	if err != OK:
+		Log.error(null,err,str("could not access directory '",path,"'"))
+		return null
+	else:
+		var results = {
+			"folders":{},
+			"files":{}
+		}
+		dir.list_dir_begin()
+		var file_name = dir.get_next()
+		while file_name != "":
+			if file_name != "." && file_name != ".." :
+				var file_data = metadata(
+					str(path,"/",file_name) if !path.ends_with("/") else str(path,file_name)
+				)
+				if dir.current_is_dir():
+					results.folders[file_name] = file_data
+				else:
+					results.files[file_name] = file_data
+			file_name = dir.get_next()
+		return results
+func find_most_recent_file(path):
+	var results = dir_contents(path)
+
+	var most_recent_timestamp = -1
+	var most_recent_file = null
+	for file_name in results.files:
+		var file = results.files[file_name]
+		if file.modified_timestamp > most_recent_timestamp:
+			most_recent_timestamp = file.modified_timestamp
+			most_recent_file = file_name
+	return most_recent_file
 
 # basic IO
 func write(path, data, create_folder_if_missing = true, password = ""):
@@ -123,42 +161,6 @@ func move_file(path, to, remove_previous = true, overwrite = false):
 			Log.error(null,err,str("could not delete file '",path,"'"))
 			return false
 	return true
-
-func dir_contents(path):
-	var dir = Directory.new()
-	var err = dir.open(path)
-	if err != OK:
-		Log.error(null,err,str("could not access directory '",path,"'"))
-		return null
-	else:
-		var results = {
-			"folders":{},
-			"files":{}
-		}
-		dir.list_dir_begin()
-		var file_name = dir.get_next()
-		while file_name != "":
-			if file_name != "." && file_name != ".." :
-				var file_data = metadata(
-					str(path,"/",file_name) if !path.ends_with("/") else str(path,file_name)
-				)
-				if dir.current_is_dir():
-					results.folders[file_name] = file_data
-				else:
-					results.files[file_name] = file_data
-			file_name = dir.get_next()
-		return results
-func find_most_recent_file(path):
-	var results = dir_contents(path)
-
-	var most_recent_timestamp = -1
-	var most_recent_file = null
-	for file_name in results.files:
-		var file = results.files[file_name]
-		if file.modified_timestamp > most_recent_timestamp:
-			most_recent_timestamp = file.modified_timestamp
-			most_recent_file = file_name
-	return most_recent_file
 
 # code by @DanielKotzer https://godotforums.org/d/20958-extracting-the-content-of-a-zip-file/4
 func unzip(zip_file, destination):

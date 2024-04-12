@@ -210,8 +210,14 @@ func update_hex_view():
 func hex_scroll_to(offset, end_offset):
 	
 	# convert byte offset to scroll line
-	var start_line = floor(float(offset) / 8.0)
-	var end_line = floor(float(end_offset - 1) / 8.0)
+	var start_line = 0
+	var end_line = 0
+	if HEXVIEW == HEXVIEW_BYTES:
+		start_line = floor(float(offset) / 8.0)
+		end_line = floor(float(end_offset - 1) / 8.0)
+	elif HEXVIEW == HEXVIEW_ASCII:
+		start_line = floor(float(offset) / 24.0)
+		end_line = floor(float(end_offset - 1) / 24.0)
 	
 	# move the view to the line
 	byte_selection = [] # this is to prevent the slider's .value change to accidentally triffer an update!
@@ -570,7 +576,10 @@ func _on_ChunkTable_cell_selected():
 	while true:
 		if data is Dictionary:
 			offset = data.get("offset", null)
-			break
+			if offset == null:
+				data = data[data.keys()[0]]
+			else:
+				break
 		elif data is Array:
 			data = data[0]
 		else:

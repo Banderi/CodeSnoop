@@ -19,7 +19,58 @@ func value_as_ascii(v, escape = false, only_ascii = true):
 		else:
 			return c
 
-# FILE
+# settings, configs, caches etc.
+const USER_PATH_RECENTFILES = "user://recent_files.var"
+func load_user_data():
+	recent_file_list = IO.read_as_var(USER_PATH_RECENTFILES)
+	if recent_file_list == null:
+		recent_file_list = [
+			"C:/WINDOWS/system32/notepad.exe" # for testing purposes
+		]
+		var _r = IO.write(USER_PATH_RECENTFILES, recent_file_list)
+	populate_recent()
+func save_user_data():
+	var _r = IO.write(USER_PATH_RECENTFILES, recent_file_list)
+	
+# recent files dropdown
+var recent_file_list = []
+onready var BTN_RECENT = $Top/Buttons/HBoxContainer2/BtnRecent
+onready var BTN_RECENT_LIST = $Top/ItemList
+onready var BTN_RECENT_SCN = load("res://scenes/BtnRecentFile.tscn")
+func clear_recent():
+	for node in BTN_RECENT_LIST.get_children():
+		node.queue_free()
+func populate_recent():
+	clear_recent()
+	for path in recent_file_list:
+		var node = BTN_RECENT_SCN.instance()
+		node.text = path
+		BTN_RECENT_LIST.add_child(node)
+		node.connect("open_file", self, "_on_BtnRecentFile_pressed")
+func add_to_recent(path):
+	if recent_file_list.find(path) != -1: # already in list!
+		if recent_file_list.find(path) == 0: # already on top. no action necessary.
+			return
+		recent_file_list.erase(path)
+	recent_file_list.push_front(path)
+	while recent_file_list.size() > 20 && recent_file_list.size() > 0: # maximum n. of recent files in history
+		recent_file_list.pop_back()
+	populate_recent()
+	save_user_data()
+func remove_from_recent(path):
+	recent_file_list.erase(path)
+	populate_recent()
+	save_user_data()
+func close_recent_dropdown():
+	BTN_RECENT.pressed = false
+	BTN_RECENT_LIST.hide()
+func _on_BtnRecent_toggled(button_pressed):
+	BTN_RECENT_LIST.visible = button_pressed
+func _on_BtnRecentFile_pressed(path):
+	close_recent_dropdown()
+	open_file(path)
+
+# BINARY FILE
 onready var OPEN_DIALOG = $OpenDialog
 var file = null
 func open_file(path):
@@ -40,6 +91,14 @@ func open_file(path):
 			read_asm_chunks()
 			update_asm_scrollbar_size()
 			update_asm_view()
+			
+			# move the file path to the most recent spot in file history
+			add_to_recent(path)
+			return true
+	
+	# failure..?
+	remove_from_recent(path)
+	return false
 func close_file():
 	GDNShell.stop()
 	GDNShell.shell_cmd = null
@@ -517,10 +576,12 @@ func clear_log():
 	Log.LOG_ENGINE = []
 	Log.LOG_ERRORS = []
 	LOG_BOX.bbcode_text = "Log cleared."
+	GDNShell.clear() # also clear the console terminal...?
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	var _r
+	_r = load_user_data()
 	_r = get_viewport().connect("gui_focus_changed", self, "_on_focus_change_intercept")
 	_r = get_tree().root.connect("size_changed", self, "_on_viewport_size_changed")
 	Log.generic(null, "Initializing...")
@@ -591,7 +652,10 @@ func _input(_event):
 	if Input.is_action_just_pressed("debug_stop"):
 		GDNShell.stop()
 	if Input.is_action_just_pressed("clear_console"):
-		GDNShell.clear()
+		clear_log()
+	if Input.is_action_just_pressed("ui_cancel"):
+		if OPEN_DIALOG.visible:
+			OPEN_DIALOG.hide()
 	
 	update_code_panel_height()
 
@@ -601,17 +665,6 @@ func _on_focus_change_intercept(node):
 
 func _on_viewport_size_changed():
 	update_code_panel_height()
-
-onready var BTN_RECENT = $Top/Buttons/HBoxContainer2/BtnRecent
-onready var BTN_RECENT_LIST = $Top/ItemList
-func close_recent_dropdown():
-	BTN_RECENT.pressed = false
-	BTN_RECENT_LIST.hide()
-func _on_BtnRecent_toggled(button_pressed):
-	BTN_RECENT_LIST.visible = button_pressed
-func _on_BtnRecentFile_pressed(path):
-	close_recent_dropdown()
-	open_file(path)
 
 func _on_BtnOpen_pressed():
 	OPEN_DIALOG.popup_centered()

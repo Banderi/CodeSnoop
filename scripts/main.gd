@@ -93,6 +93,7 @@ func open_file(path):
 			
 			# asm chunks & disassembler
 			read_asm_chunks()
+			fill_ChunkTable()
 			update_asm_scrollbar_size()
 			update_asm_view()
 			
@@ -118,7 +119,222 @@ func close_file():
 func _on_OpenDialog_file_selected(path):
 	open_file(path)
 
-##### CODING / MAIN PANELs
+enum PE_SIGNATURE {
+	WIN32 = int("PE"),
+	WIN16 = int("NE"),
+	WIN3X_VxD = int("LE"),
+	OS2 = int("LX"),
+}
+
+# chunks list & chunk data panel
+onready var CHUNKS_LIST = $VSplitContainer/Main/Code/Chunks/List
+onready var CHUNKS_DATA = $VSplitContainer/Main/Code/Chunks/Data
+var asm_chunks = {}
+func read_asm_chunks():
+	asm_chunks = {}
+	if file != null:
+		file.seek(0)
+		asm_chunks["_IMAGE_DOS_HEADER"]	= {
+			"offset": file.get_position(),
+			"e_magic": file.read("str2"),
+			"e_cblp": file.read("i16"),
+			"e_cp": file.read("i16"),
+			"e_crlc": file.read("i16"),
+			"e_cparhdr": file.read("i16"),
+			"e_minalloc": file.read("i16"),
+			"e_maxalloc": file.read("i16"),
+			"e_ss": file.read("i16"),
+			"e_sp": file.read("i16"),
+			"e_csum": file.read("i16"),
+			"e_ip": file.read("i16"),
+			"e_cs": file.read("i16"),
+			"e_lfarlc": file.read("i16"),
+			"e_ovno": file.read("i16"),
+			"e_res": [
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16")
+			],
+			"e_oemid": file.read("i16"),
+			"e_oeminfo": file.read("i16"),
+			"e_res2": [
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16"),
+				file.read("i16")
+			],
+			"e_lfanew": file.read("u32", 1, "0x%08X"),
+		}
+		var dos_stub_size = asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value - 64
+		asm_chunks["_IMAGE_DOS_STUB"] = file.read(dos_stub_size)
+		assert(file.get_position() == asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value)
+		asm_chunks["_IMAGE_NT_HEADERS"] = {
+			"offset": file.get_position(),
+			"Signature": file.read("str4"),
+			"FileHeader": {
+				"offset": file.get_position(),
+				"Machine": file.read("u16", 1, "0x%04X"),
+				"NumberOfSections": file.read("u16"),
+				"TimeDateStamp": file.read("u32"),
+				"PointerToSymbolTable": file.read("p32"),
+				"NumberOfSymbols": file.read("u32"),
+				"SizeOfOptionalHeader": file.read("u16"),
+				"Characteristics": file.read("i16")
+			},
+			"OptionalHeader": {
+				"offset": file.get_position(),
+				"Magic": file.read("i16"),
+				"MajorLinkerVersion": file.read("i8"),
+				"MinorLinkerVersion": file.read("i8"),
+				"SizeOfCode": file.read("u32"),
+				"SizeOfInitializedData": file.read("u32"),
+				"SizeOfUninitializedData": file.read("u32"),
+				"AddressOfEntryPoint": file.read("p32"),
+				"BaseOfCode": file.read("p32"),
+				"ImageBase": file.read("p64"),
+				"SectionAlignment": file.read("u32"),
+				"FileAlignment": file.read("u32"),
+				"MajorOperatingSystemVersion": file.read("i16"),
+				"MinorOperatingSystemVersion": file.read("i16"),
+				"MajorImageVersion": file.read("i16"),
+				"MinorImageVersion": file.read("i16"),
+				"MajorSubsystemVersion": file.read("i16"),
+				"MinorSubsystemVersion": file.read("i16"),
+				"Win32VersionValue": file.read("i32"),
+				"SizeOfImage": file.read("u32"),
+				"SizeOfHeaders": file.read("u32"),
+				"CheckSum": file.read("i32"),
+				"Subsystem": file.read("i16"),
+				"DllCharacteristics": file.read("i16"),
+				"SizeOfStackReserve": file.read("u64"),
+				"SizeOfStackCommit": file.read("u64"),
+				"SizeOfHeapReserve": file.read("u64"),
+				"SizeOfHeapCommit": file.read("u64"),
+				"LoaderFlags": file.read("u32"),
+				"NumberOfRvaAndSizes": file.read("i32"),
+				"DataDirectory": []
+			}
+		}
+		for _i in range(0,16):
+			asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory.push_back({
+				"offset": file.get_position(),
+				"VirtualAddress": file.read("p32"),
+				"Size": file.read("u32")
+			})
+		asm_chunks["_SECTIONS"] = {}
+		for _i in range(0,asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSections.value):
+			var section = {
+				"offset": file.get_position(),
+				"Name": file.read("str8"),
+				"Misc": file.read("u32"),
+				"VirtualAddress": file.read("p32"),
+				"SizeOfRawData": file.read("u32"),
+				"PointerToRawData": file.read("p32"),
+				"PointerToRelocations": file.read("p32"),
+				"PointerToLinenumbers": file.read("p32"),
+				"NumberOfRelocations": file.read("u16"),
+				"NumberOfLinenumbers": file.read("u16"),
+				"Characteristics": file.read("i32"),
+			}
+			var section_name = DataStruct.as_text(section.Name)
+			asm_chunks["_SECTIONS"][section_name] = section
+#		assert(file.get_position() == asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.SizeOfHeaders.value)
+		
+func fill_ChunkTable():
+	CHUNKS_LIST.clear()
+	var root = CHUNKS_LIST.create_item()
+	root.set_text(0, IO.get_file_name(GDNShell.shell_cmd))
+	recursive_fill_ChunkTable(asm_chunks, null, null)
+	DataStruct.schema_items_names = {}
+	DataStruct.record_schema_names_recursive(CHUNKS_LIST.get_root().get_children())
+func recursive_fill_ChunkTable(item, parent, itemname):
+	# create a new table item and determine its name & name-based params
+	var table_item = null
+	if itemname != null:
+		table_item = CHUNKS_LIST.create_item(parent)
+		table_item.collapsed = true
+		if itemname.begins_with("unk"):
+			itemname = "??"
+			table_item.set_custom_color(0, Color(1,1,1,0.3))
+		elif itemname.begins_with("unused"):
+			table_item.set_custom_color(0, Color(1,0.7,0.7,0.5))
+		if itemname == "_SECTIONS":
+			table_item.collapsed = false
+	
+	# determine the object size, recursively going through the childs if necessary
+	var total_bytes = 0
+	if DataStruct.is_valid(item):
+		total_bytes += item.size
+	else:
+		if item is Dictionary && item.has("value"):
+			item = item.value
+		if item is Dictionary:
+			for k in item:
+				if k == "offset" || k == "schema_index":
+					continue
+				total_bytes += recursive_fill_ChunkTable(item[k], table_item, str(k))
+		elif item is Array:
+			for e in item.size():
+				total_bytes += recursive_fill_ChunkTable(item[e], table_item, str("[",e,"]"))
+	
+	# set item name & size
+	if itemname != null:
+		if item is Dictionary && "compressed_size" in item:
+			table_item.set_text(0, str(itemname," (",total_bytes,") **"))
+			table_item.set_custom_color(0, Color(0.8,0.8,0))
+		else:
+			table_item.set_text(0, str(itemname," (",total_bytes,")"))
+	
+		if item is Dictionary && item.has("type") && item.type == "addr":
+			table_item.set_custom_color(0, Color(0.0,0.4,0.8))
+		
+	
+	# add metadata to the first cell:
+	# name text, data obj (reference), total obj size in bytes
+	if table_item != null:
+		table_item.set_metadata(0, [itemname,item,total_bytes])
+	return total_bytes
+func _on_ChunkTable_cell_selected():
+	var selection = CHUNKS_LIST.get_selected()
+	var metadata = selection.get_metadata(0)
+	CHUNKS_DATA.clear()
+	if metadata == null:
+		return
+	CHUNKS_DATA.present(metadata[0], metadata[1])
+	
+	# get the chunk offset in memory
+	var offset = null
+	var data = metadata[1]
+	while true:
+		if data is Dictionary:
+			offset = data.get("offset", null)
+			if offset == null:
+				data = data[data.keys()[0]]
+			else:
+				break
+		elif data is Array:
+			data = data[0]
+		else:
+			break
+	
+	# found a valid offset?
+	if offset != null:
+		hex_scroll_to(offset, offset + metadata[2])
+func _on_ChunkTable_item_activated():
+	var selection = CHUNKS_LIST.get_selected()
+	var metadata = selection.get_metadata(0)
+	var data = metadata[1]
+	if data is Dictionary && "type" in data && data.type == "addr":
+		hex_scroll_to(data.value, data.value + 4)
+
+##### CODING / MAIN PANELS
 var code_height = 0
 onready var CODE = $VSplitContainer/Main/Code
 func update_code_panel_height():
@@ -265,13 +481,19 @@ func update_hex_infobox():
 			end_byte = byte_selection[1] - 1
 		
 		# offset text
+		var size = end_byte - start_byte + 1
+		var start_offs_strip = "%08X" % [start_byte]
+		var end_offs_strip = "%08X" % [end_byte]
+		var temp = end_offs_strip
+		for c in temp.length():
+			if end_offs_strip[c] == start_offs_strip[c]:
+				temp = temp.substr(1)
 		if end_byte != start_byte:
-			HEXVIEW_INFO.text = "0x%08X-%08X" % [start_byte, end_byte]
+			HEXVIEW_INFO.text = "0x%s-%s (%d)" % [start_offs_strip, temp, size]
 		else:
-			HEXVIEW_INFO.text = "0x%08X" % [start_byte]
+			HEXVIEW_INFO.text = "0x%s (%d)" % [start_offs_strip, size]
 		
 		# int
-		var size = end_byte - start_byte + 1
 		var decimal = "??"
 		if size >= 1:
 			file.seek(start_byte)
@@ -377,223 +599,6 @@ func _on_AsciiMode_toggled(button_pressed):
 	HEXVIEW.show()
 	update_hex_view()
 	update_hex_scrollbar_size()
-
-
-enum PE_SIGNATURE {
-	WIN32 = int("PE"),
-	WIN16 = int("NE"),
-	WIN3X_VxD = int("LE"),
-	OS2 = int("LX"),
-}
-
-# chunks list & chunk data panel
-onready var CHUNKS_LIST = $VSplitContainer/Main/Code/Chunks/List
-onready var CHUNKS_DATA = $VSplitContainer/Main/Code/Chunks/Data
-var asm_chunks = {}
-func read_asm_chunks():
-	asm_chunks = {}
-	if file != null:
-		file.seek(0)
-		asm_chunks["_IMAGE_DOS_HEADER"]	= {
-			"offset": file.get_position(),
-			"e_magic": file.read("str2"),
-			"e_cblp": file.read("i16"),
-			"e_cp": file.read("i16"),
-			"e_crlc": file.read("i16"),
-			"e_cparhdr": file.read("i16"),
-			"e_minalloc": file.read("i16"),
-			"e_maxalloc": file.read("i16"),
-			"e_ss": file.read("i16"),
-			"e_sp": file.read("i16"),
-			"e_csum": file.read("i16"),
-			"e_ip": file.read("i16"),
-			"e_cs": file.read("i16"),
-			"e_lfarlc": file.read("i16"),
-			"e_ovno": file.read("i16"),
-			"e_res": [
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16")
-			],
-			"e_oemid": file.read("i16"),
-			"e_oeminfo": file.read("i16"),
-			"e_res2": [
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16")
-			],
-			"e_lfanew": file.read("u32", 1, "0x%08X"),
-		}
-		var dos_stub_size = asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value - 64
-		asm_chunks["_IMAGE_DOS_STUB"] = file.read(dos_stub_size)
-		assert(file.get_position() == asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value)
-		asm_chunks["_IMAGE_NT_HEADERS"] = {
-			"offset": file.get_position(),
-			"Signature": file.read("str4"),
-			"FileHeader": {
-				"offset": file.get_position(),
-				"Machine": file.read("u16", 1, "0x%04X"),
-				"NumberOfSections": file.read("u16"),
-				"TimeDateStamp": file.read("u32"),
-				"PointerToSymbolTable": file.read("p32"),
-				"NumberOfSymbols": file.read("u32"),
-				"SizeOfOptionalHeader": file.read("u16"),
-				"Characteristics": file.read("i16")
-			},
-			"OptionalHeader": {
-				"offset": file.get_position(),
-				"Magic": file.read("i16"),
-				"MajorLinkerVersion": file.read("i8"),
-				"MinorLinkerVersion": file.read("i8"),
-				"SizeOfCode": file.read("u32"),
-				"SizeOfInitializedData": file.read("u32"),
-				"SizeOfUninitializedData": file.read("u32"),
-				"AddressOfEntryPoint": file.read("p32"),
-				"BaseOfCode": file.read("p32"),
-				"ImageBase": file.read("p64"),
-				"SectionAlignment": file.read("u32"),
-				"FileAlignment": file.read("u32"),
-				"MajorOperatingSystemVersion": file.read("i16"),
-				"MinorOperatingSystemVersion": file.read("i16"),
-				"MajorImageVersion": file.read("i16"),
-				"MinorImageVersion": file.read("i16"),
-				"MajorSubsystemVersion": file.read("i16"),
-				"MinorSubsystemVersion": file.read("i16"),
-				"Win32VersionValue": file.read("i32"),
-				"SizeOfImage": file.read("u32"),
-				"SizeOfHeaders": file.read("u32"),
-				"CheckSum": file.read("i32"),
-				"Subsystem": file.read("i16"),
-				"DllCharacteristics": file.read("i16"),
-				"SizeOfStackReserve": file.read("u64"),
-				"SizeOfStackCommit": file.read("u64"),
-				"SizeOfHeapReserve": file.read("u64"),
-				"SizeOfHeapCommit": file.read("u64"),
-				"LoaderFlags": file.read("u32"),
-				"NumberOfRvaAndSizes": file.read("i32"),
-				"DataDirectory": []
-			}
-		}
-		for _i in range(0,16):
-			asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory.push_back({
-				"offset": file.get_position(),
-				"VirtualAddress": file.read("p32"),
-				"Size": file.read("u32")
-			})
-		asm_chunks["_SECTIONS"] = {}
-		for _i in range(0,asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSections.value):
-			var section = {
-				"offset": file.get_position(),
-				"Name": file.read("str8"),
-				"Misc": file.read("u32"),
-				"VirtualAddress": file.read("p32"),
-				"SizeOfRawData": file.read("u32"),
-				"PointerToRawData": file.read("p32"),
-				"PointerToRelocations": file.read("p32"),
-				"PointerToLinenumbers": file.read("p32"),
-				"NumberOfRelocations": file.read("u16"),
-				"NumberOfLinenumbers": file.read("u16"),
-				"Characteristics": file.read("i32"),
-			}
-			var section_name = DataStruct.as_text(section.Name)
-			asm_chunks["_SECTIONS"][section_name] = section
-#		assert(file.get_position() == asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.SizeOfHeaders.value)
-		
-		fill_ChunkTable()
-func fill_ChunkTable():
-	CHUNKS_LIST.clear()
-	var root = CHUNKS_LIST.create_item()
-	root.set_text(0, IO.get_file_name(GDNShell.shell_cmd))
-	recursive_fill_ChunkTable(asm_chunks, null, null)
-	DataStruct.schema_items_names = {}
-	DataStruct.record_schema_names_recursive(CHUNKS_LIST.get_root().get_children())
-func recursive_fill_ChunkTable(item, parent, itemname):
-	# create a new table item and determine its name & name-based params
-	var table_item = null
-	if itemname != null:
-		table_item = CHUNKS_LIST.create_item(parent)
-		table_item.collapsed = true
-		if itemname.begins_with("unk"):
-			itemname = "??"
-			table_item.set_custom_color(0, Color(1,1,1,0.3))
-		elif itemname.begins_with("unused"):
-			table_item.set_custom_color(0, Color(1,0.7,0.7,0.5))
-		if itemname == "_SECTIONS":
-			table_item.collapsed = false
-	
-	# determine the object size, recursively going through the childs if necessary
-	var total_bytes = 0
-	if DataStruct.is_valid(item):
-		total_bytes += item.size
-	else:
-		if item is Dictionary && item.has("value"):
-			item = item.value
-		if item is Dictionary:
-			for k in item:
-				if k == "offset" || k == "schema_index":
-					continue
-				total_bytes += recursive_fill_ChunkTable(item[k], table_item, str(k))
-		elif item is Array:
-			for e in item.size():
-				total_bytes += recursive_fill_ChunkTable(item[e], table_item, str("[",e,"]"))
-	
-	# set item name & size
-	if itemname != null:
-		if item is Dictionary && "compressed_size" in item:
-			table_item.set_text(0, str(itemname," (",total_bytes,") **"))
-			table_item.set_custom_color(0, Color(0.8,0.8,0))
-		else:
-			table_item.set_text(0, str(itemname," (",total_bytes,")"))
-	
-		if item is Dictionary && item.has("type") && item.type == "addr":
-			table_item.set_custom_color(0, Color(0.0,0.4,0.8))
-		
-	
-	# add metadata to the first cell:
-	# name text, data obj (reference), total obj size in bytes
-	if table_item != null:
-		table_item.set_metadata(0, [itemname,item,total_bytes])
-	return total_bytes
-func _on_ChunkTable_cell_selected():
-	var selection = CHUNKS_LIST.get_selected()
-	var metadata = selection.get_metadata(0)
-	CHUNKS_DATA.clear()
-	if metadata == null:
-		return
-	CHUNKS_DATA.present(metadata[0], metadata[1])
-	
-	# get the chunk offset in memory
-	var offset = null
-	var data = metadata[1]
-	while true:
-		if data is Dictionary:
-			offset = data.get("offset", null)
-			if offset == null:
-				data = data[data.keys()[0]]
-			else:
-				break
-		elif data is Array:
-			data = data[0]
-		else:
-			break
-	
-	# found a valid offset?
-	if offset != null:
-		hex_scroll_to(offset, offset + metadata[2])
-func _on_ChunkTable_item_activated():
-	var selection = CHUNKS_LIST.get_selected()
-	var metadata = selection.get_metadata(0)
-	var data = metadata[1]
-	if data is Dictionary && "type" in data && data.type == "addr":
-		hex_scroll_to(data.value, data.value + 4)
 
 # asm / disassembler
 onready var ASM = $VSplitContainer/Main/Code/Asm

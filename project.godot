@@ -46,6 +46,7 @@ Debugger="*res://scripts/autoloads/Debugger.gd"
 Shell="*res://scripts/autoloads/Shell.gd"
 GDNShell="*res://scripts/autoloads/GDNShell.gd"
 DataStruct="*res://scripts/autoloads/DataStruct.gd"
+PE="*res://scripts/autoloads/PE.gd"
 
 [display]
 

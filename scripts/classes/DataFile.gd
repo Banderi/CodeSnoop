@@ -53,3 +53,11 @@ func read_zip_chunk(schema_index : int = -1):
 	}
 	DataStruct.record_schema_item(struct)
 	return struct
+func read_xor_encrypted(type, key_bytes, optional_formatting = null):
+	var offset = get_position()
+	var meta = DataStruct.type_to_size(type)
+	var data_item = read(meta[1], -1, optional_formatting)
+	data_item.type = meta[0]
+#	data_item["raw"] = data_item.value
+	data_item["xor"] = key_bytes
+	return data_item

@@ -5,6 +5,11 @@ func _ready():
 
 const MAX_COLUMNS = 99
 
+func set_editable(table_item):
+	if table_item != null:
+		for c in columns-1:
+			table_item.set_editable(c+1,true)
+
 func clear():
 	.clear()
 	var _root = create_item()
@@ -13,9 +18,9 @@ func clear():
 func add_array_member(label, data):
 	var table_item = create_item()
 	
-	set_column_min_width(0, 1)
+	set_column_min_width(0, 2)
 	for c in min(MAX_COLUMNS, data.size()):
-		set_column_min_width(c + 1, 2)
+		set_column_min_width(c + 1, 5)
 		
 	if DataStruct.is_valid(data):
 		table_item.set_text(1, DataStruct.as_text(data))
@@ -106,6 +111,6 @@ func present(key, data):
 			if DataStruct.is_valid(data[element]):
 				add_raw_field(element, DataStruct.as_data_array(data[element]))
 			else:
-				if element == "offset" || element == "schema_index":
+				if element == "offset" || element == "schema_index" || element == "xor":
 					continue
 				add_raw_field(element, ["..."])

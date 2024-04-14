@@ -172,9 +172,52 @@ func read_asm_chunks():
 			],
 			"e_lfanew": file.read("u32", 1, "0x%08X"),
 		}
-		var dos_stub_size = asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value - 64
-		asm_chunks["_IMAGE_DOS_STUB"] = file.read(dos_stub_size)
-		assert(file.get_position() == asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value)
+		asm_chunks["_IMAGE_DOS_STUB"] = file.read(64)
+		var PE_offset = asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value
+		
+		# MSVC Link.exe "Rich" header
+		var msvclink_inj_size = PE_offset - file.get_position()
+		if msvclink_inj_size > 0:
+			
+			# find the "Rich" signature first
+			var link_start_offset = file.get_position()
+			var rich_offset = link_start_offset
+			while file.get_buffer(4) as Array != [0x52, 0x69, 0x63, 0x68]:
+				file.seek(file.get_position() + 4)
+				rich_offset = file.get_position()
+				if rich_offset >= PE_offset:
+					rich_offset = -1
+					break # no "Rich" found?
+			
+			if rich_offset != -1:
+				var key = file.read(4)
+				file.seek(link_start_offset)
+				asm_chunks["Link.exe_signature"] = {
+					"sign_DanS": file.read_xor_encrypted("str4", key.value),
+					"empty_padding": file.read_xor_encrypted(4, key.value),
+					"values": []
+				}
+				
+				# data fields: 8 bytes each
+				for i in range(1, msvclink_inj_size/8):
+					if file.get_position() < rich_offset:
+						asm_chunks["Link.exe_signature"]["values"].push_back({
+							"buildNumber": file.read_xor_encrypted("u16", key.value),
+							"productID": file.read_xor_encrypted("u16", [key.value[2], key.value[3]], "PRODID"),
+							"objectCount": file.read_xor_encrypted("u32", key.value),
+						})
+					elif file.get_position() == rich_offset: # the Rich field is just "Rich" + the XOR key
+						asm_chunks["Link.exe_signature"]["sign_Rich"] = file.read("str4")
+						asm_chunks["Link.exe_signature"]["key_checksum"] = key
+					else:
+						file.seek(file.get_position() + 4) # the last fields after Rich are empty
+						var remaining_size = PE_offset - file.get_position()
+						asm_chunks["Link.exe_signature"][str("empty_",remaining_size,"_bytes")] = file.read(remaining_size)
+						break
+			else:
+				file.seek(PE_offset - msvclink_inj_size)
+				asm_chunks["unk_Link.exe_signature"] = file.read(msvclink_inj_size)
+		file.seek(PE_offset)
 		asm_chunks["_IMAGE_NT_HEADERS"] = {
 			"offset": file.get_position(),
 			"Signature": file.read("str4"),
@@ -252,8 +295,20 @@ func fill_ChunkTable():
 	var root = CHUNKS_LIST.create_item()
 	root.set_text(0, IO.get_file_name(GDNShell.shell_cmd))
 	recursive_fill_ChunkTable(asm_chunks, null, null)
-	DataStruct.schema_items_names = {}
-	DataStruct.record_schema_names_recursive(CHUNKS_LIST.get_root().get_children())
+func recursive_is_item_encrypted(item):
+	if DataStruct.is_valid(item):
+		if "xor" in item:
+			return true
+	elif item is Dictionary:
+		for key in item:
+			if !recursive_is_item_encrypted(item[key]):
+				return false
+		return true
+	elif item is Array:
+		for child in item:
+			if recursive_is_item_encrypted(child):
+				return true
+	return false
 func recursive_fill_ChunkTable(item, parent, itemname):
 	# create a new table item and determine its name & name-based params
 	var table_item = null
@@ -277,7 +332,7 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 			item = item.value
 		if item is Dictionary:
 			for k in item:
-				if k == "offset" || k == "schema_index":
+				if k == "offset" || k == "schema_index" || k == "xor":
 					continue
 				total_bytes += recursive_fill_ChunkTable(item[k], table_item, str(k))
 		elif item is Array:
@@ -286,7 +341,7 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 	
 	# set item name & size
 	if itemname != null:
-		if item is Dictionary && "compressed_size" in item:
+		if (item is Dictionary && ("compressed_size" in item)) || recursive_is_item_encrypted(item):
 			table_item.set_text(0, str(itemname," (",total_bytes,") **"))
 			table_item.set_custom_color(0, Color(0.8,0.8,0))
 		else:
@@ -652,6 +707,7 @@ func _ready():
 	LOG_BOX.bbcode_text = ""
 	GDNShell.clear()
 	close_file()
+	PE.load_prodid_enums()
 	update_code_panel_height()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.

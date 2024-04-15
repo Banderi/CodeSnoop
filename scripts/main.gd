@@ -72,229 +72,38 @@ func _on_BtnRecent_toggled(button_pressed):
 	BTN_RECENT_LIST.visible = button_pressed
 func _on_BtnRecentFile_pressed(path):
 	close_recent_dropdown()
-	open_file(path)
+	PE_open(path)
 
 # BINARY FILE
 onready var OPEN_DIALOG = $OpenDialog
-var file = null
-func open_file(path):
-	if IO.file_exists(path):
-		close_file() # REMEMBER TO CLOSE THE FILE FIRST!
-		Log.generic(null, "Opening file '%s'" % [path])
-		file = IO.read(path)
-		if file != null:
-			GDNShell.shell_cmd = path
-			
-			# hex view
-			byte_selection = []
-			update_hex_scrollbar_size()
-			update_hex_view()
-			HEXVIEW_SLIDER.value = HEXVIEW_SLIDER.max_value
-			
-			# asm chunks & disassembler
-			read_asm_chunks()
-			fill_ChunkTable()
-			update_asm_scrollbar_size()
-			update_asm_view()
-			
-			# move the file path to the most recent spot in file history
-			add_to_recent(path)
-			return true
-	
-	# failure..?
-	remove_from_recent(path)
-	return false
-func close_file():
-	GDNShell.stop()
-	GDNShell.shell_cmd = null
-	if file != null:
-		file.close() # this is EXTREMELY IMPORTANT.
-	file = null
-	update_hex_scrollbar_size()
-	update_hex_view()
-	
-	asm_chunks = {}
-	CHUNKS_LIST.clear()
-	CHUNKS_DATA.clear()
+func PE_open(path):
+	if !PE.open_file(path):
+		remove_from_recent(path)
+	else:
+		# hex view
+		byte_selection = []
+		update_hex_scrollbar_size()
+		update_hex_view()
+		HEXVIEW_SLIDER.value = HEXVIEW_SLIDER.max_value
+		
+		# asm chunks & disassembler
+		fill_ChunkTable()
+		update_asm_scrollbar_size()
+		update_asm_view()
+		
+		# move the file path to the most recent spot in file history
+		add_to_recent(path)
 func _on_OpenDialog_file_selected(path):
-	open_file(path)
-
-enum PE_SIGNATURE {
-	WIN32 = int("PE"),
-	WIN16 = int("NE"),
-	WIN3X_VxD = int("LE"),
-	OS2 = int("LX"),
-}
+	PE_open(path)
 
 # chunks list & chunk data panel
 onready var CHUNKS_LIST = $VSplitContainer/Main/Code/Chunks/List
 onready var CHUNKS_DATA = $VSplitContainer/Main/Code/Chunks/Data
-var asm_chunks = {}
-func read_asm_chunks():
-	asm_chunks = {}
-	if file != null:
-		file.seek(0)
-		asm_chunks["_IMAGE_DOS_HEADER"]	= {
-			"offset": file.get_position(),
-			"e_magic": file.read("str2"),
-			"e_cblp": file.read("i16"),
-			"e_cp": file.read("i16"),
-			"e_crlc": file.read("i16"),
-			"e_cparhdr": file.read("i16"),
-			"e_minalloc": file.read("i16"),
-			"e_maxalloc": file.read("i16"),
-			"e_ss": file.read("i16"),
-			"e_sp": file.read("i16"),
-			"e_csum": file.read("i16"),
-			"e_ip": file.read("i16"),
-			"e_cs": file.read("i16"),
-			"e_lfarlc": file.read("i16"),
-			"e_ovno": file.read("i16"),
-			"e_res": [
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16")
-			],
-			"e_oemid": file.read("i16"),
-			"e_oeminfo": file.read("i16"),
-			"e_res2": [
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16"),
-				file.read("i16")
-			],
-			"e_lfanew": file.read("u32", 1, "0x%08X"),
-		}
-		asm_chunks["_IMAGE_DOS_STUB"] = file.read(64)
-		var PE_offset = asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value
-		
-		# MSVC Link.exe "Rich" header
-		var msvclink_inj_size = PE_offset - file.get_position()
-		if msvclink_inj_size > 0:
-			
-			# find the "Rich" signature first
-			var link_start_offset = file.get_position()
-			var rich_offset = link_start_offset
-			while file.get_buffer(4) as Array != [0x52, 0x69, 0x63, 0x68]:
-				file.seek(file.get_position() + 4)
-				rich_offset = file.get_position()
-				if rich_offset >= PE_offset:
-					rich_offset = -1
-					break # no "Rich" found?
-			
-			if rich_offset != -1:
-				var key = file.read(4)
-				file.seek(link_start_offset)
-				asm_chunks["Link.exe_signature"] = {
-					"sign_DanS": file.read_xor_encrypted("str4", key.value),
-					"empty_padding": file.read_xor_encrypted(4, key.value),
-					"values": []
-				}
-				
-				# data fields: 8 bytes each
-				for i in range(1, msvclink_inj_size/8):
-					if file.get_position() < rich_offset:
-						asm_chunks["Link.exe_signature"]["values"].push_back({
-							"buildNumber": file.read_xor_encrypted("u16", key.value),
-							"productID": file.read_xor_encrypted("u16", [key.value[2], key.value[3]], "PRODID"),
-							"objectCount": file.read_xor_encrypted("u32", key.value),
-						})
-					elif file.get_position() == rich_offset: # the Rich field is just "Rich" + the XOR key
-						asm_chunks["Link.exe_signature"]["sign_Rich"] = file.read("str4")
-						asm_chunks["Link.exe_signature"]["key_checksum"] = key
-					else:
-						file.seek(file.get_position() + 4) # the last fields after Rich are empty
-						var remaining_size = PE_offset - file.get_position()
-						asm_chunks["Link.exe_signature"][str("empty_",remaining_size,"_bytes")] = file.read(remaining_size)
-						break
-			else:
-				file.seek(PE_offset - msvclink_inj_size)
-				asm_chunks["unk_Link.exe_signature"] = file.read(msvclink_inj_size)
-		file.seek(PE_offset)
-		asm_chunks["_IMAGE_NT_HEADERS"] = {
-			"offset": file.get_position(),
-			"Signature": file.read("str4"),
-			"FileHeader": {
-				"offset": file.get_position(),
-				"Machine": file.read("u16", 1, "0x%04X"),
-				"NumberOfSections": file.read("u16"),
-				"TimeDateStamp": file.read("u32"),
-				"PointerToSymbolTable": file.read("p32"),
-				"NumberOfSymbols": file.read("u32"),
-				"SizeOfOptionalHeader": file.read("u16"),
-				"Characteristics": file.read("i16")
-			},
-			"OptionalHeader": {
-				"offset": file.get_position(),
-				"Magic": file.read("i16"),
-				"MajorLinkerVersion": file.read("i8"),
-				"MinorLinkerVersion": file.read("i8"),
-				"SizeOfCode": file.read("u32"),
-				"SizeOfInitializedData": file.read("u32"),
-				"SizeOfUninitializedData": file.read("u32"),
-				"AddressOfEntryPoint": file.read("p32"),
-				"BaseOfCode": file.read("p32"),
-				"ImageBase": file.read("p64"),
-				"SectionAlignment": file.read("u32"),
-				"FileAlignment": file.read("u32"),
-				"MajorOperatingSystemVersion": file.read("i16"),
-				"MinorOperatingSystemVersion": file.read("i16"),
-				"MajorImageVersion": file.read("i16"),
-				"MinorImageVersion": file.read("i16"),
-				"MajorSubsystemVersion": file.read("i16"),
-				"MinorSubsystemVersion": file.read("i16"),
-				"Win32VersionValue": file.read("i32"),
-				"SizeOfImage": file.read("u32"),
-				"SizeOfHeaders": file.read("u32"),
-				"CheckSum": file.read("i32"),
-				"Subsystem": file.read("i16"),
-				"DllCharacteristics": file.read("i16"),
-				"SizeOfStackReserve": file.read("u64"),
-				"SizeOfStackCommit": file.read("u64"),
-				"SizeOfHeapReserve": file.read("u64"),
-				"SizeOfHeapCommit": file.read("u64"),
-				"LoaderFlags": file.read("u32"),
-				"NumberOfRvaAndSizes": file.read("i32"),
-				"DataDirectory": []
-			}
-		}
-		for _i in range(0,16):
-			asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory.push_back({
-				"offset": file.get_position(),
-				"VirtualAddress": file.read("p32"),
-				"Size": file.read("u32")
-			})
-		asm_chunks["_SECTIONS"] = {}
-		for _i in range(0,asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSections.value):
-			var section = {
-				"offset": file.get_position(),
-				"Name": file.read("str8"),
-				"Misc": file.read("u32"),
-				"VirtualAddress": file.read("p32"),
-				"SizeOfRawData": file.read("u32"),
-				"PointerToRawData": file.read("p32"),
-				"PointerToRelocations": file.read("p32"),
-				"PointerToLinenumbers": file.read("p32"),
-				"NumberOfRelocations": file.read("u16"),
-				"NumberOfLinenumbers": file.read("u16"),
-				"Characteristics": file.read("i32"),
-			}
-			var section_name = DataStruct.as_text(section.Name)
-			asm_chunks["_SECTIONS"][section_name] = section
-#		assert(file.get_position() == asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.SizeOfHeaders.value)
-		
 func fill_ChunkTable():
 	CHUNKS_LIST.clear()
 	var root = CHUNKS_LIST.create_item()
 	root.set_text(0, IO.get_file_name(GDNShell.shell_cmd))
-	recursive_fill_ChunkTable(asm_chunks, null, null)
+	recursive_fill_ChunkTable(PE.asm_chunks, null, null)
 func recursive_is_item_encrypted(item):
 	if DataStruct.is_valid(item):
 		if "xor" in item:
@@ -384,6 +193,7 @@ func _on_ChunkTable_cell_selected():
 		hex_scroll_to(offset, offset + metadata[2])
 func _on_ChunkTable_item_activated():
 	var selection = CHUNKS_LIST.get_selected()
+	selection.collapsed = !selection.collapsed
 	var metadata = selection.get_metadata(0)
 	var data = metadata[1]
 	if data is Dictionary && "type" in data && data.type == "addr":
@@ -413,11 +223,11 @@ var just_scrolled = false
 func hex_view_visible_lines():
 	return floor(code_height / (16 + HEXVIEW.get("custom_constants/line_spacing"))) - 4
 func update_hex_scrollbar_size():
-	if file != null:
+	if PE.file != null:
 		# remember the previous relative position/scroll percentage
 		var perc = float(HEXVIEW_SLIDER.value) / float(HEXVIEW_SLIDER.max_value)
 		HEXVIEW_SLIDER.editable = true
-		var file_length = file.get_len()
+		var file_length = PE.file.get_len()
 		if HEXVIEW == HEXVIEW_BYTES:
 			var lines_count = ceil(float(file_length) / 8.0)
 			var line_start = lines_count - hex_view_visible_lines()
@@ -438,12 +248,12 @@ func update_hex_scrollbar_size():
 func update_hex_view():
 	var temp_offsets = ""
 	var temp_bytes = ""
-	if file != null:
+	if PE.file != null:
 		if HEXVIEW == HEXVIEW_BYTES:
 			var byte_start = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 8
-			var byte_length = min(8 * hex_view_visible_lines(), file.get_len() - byte_start)
-			file.seek(byte_start)
-			var buffer = file.get_buffer(byte_length)
+			var byte_length = min(8 * hex_view_visible_lines(), PE.file.get_len() - byte_start)
+			PE.file.seek(byte_start)
+			var buffer = PE.file.get_buffer(byte_length)
 			var l = 0
 			var b = 0
 			temp_offsets += "%08X" % [byte_start]
@@ -456,9 +266,9 @@ func update_hex_view():
 					temp_offsets += "\n%08X" % [byte_start + l * 8 + b]
 		elif HEXVIEW == HEXVIEW_ASCII:
 			var byte_start = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 24
-			var byte_length = min(24 * hex_view_visible_lines(), file.get_len() - byte_start)
-			file.seek(byte_start)
-			var buffer = file.get_buffer(byte_length)
+			var byte_length = min(24 * hex_view_visible_lines(), PE.file.get_len() - byte_start)
+			PE.file.seek(byte_start)
+			var buffer = PE.file.get_buffer(byte_length)
 			var l = 0
 			var b = 0
 			temp_offsets += "%08X" % [byte_start]
@@ -528,7 +338,7 @@ func update_hex_selection_from_code():
 	update_hex_infobox()
 func update_hex_infobox():
 	HEXVIEW_INFO.text = ""
-	if file != null && byte_selection != []:
+	if PE.file != null && byte_selection != []:
 		# byte offsets
 		var start_byte = byte_selection[0]
 		var end_byte = start_byte
@@ -543,6 +353,8 @@ func update_hex_infobox():
 		for c in temp.length():
 			if end_offs_strip[c] == start_offs_strip[c]:
 				temp = temp.substr(1)
+			else:
+				break
 		if end_byte != start_byte:
 			HEXVIEW_INFO.text = "0x%s-%s (%d)" % [start_offs_strip, temp, size]
 		else:
@@ -551,17 +363,17 @@ func update_hex_infobox():
 		# int
 		var decimal = "??"
 		if size >= 1:
-			file.seek(start_byte)
-			var d = file.get_8()
-			file.seek(start_byte)
-			var c = value_as_ascii(file.get_buffer(size))
+			PE.file.seek(start_byte)
+			var d = PE.file.get_8()
+			PE.file.seek(start_byte)
+			var c = value_as_ascii(PE.file.get_buffer(size))
 			decimal = str("int8: ", d, " char: ", c)
 		if size >= 2:
-			file.seek(start_byte)
-			decimal += str("\nint16: ", file.get_16())
+			PE.file.seek(start_byte)
+			decimal += str("\nint16: ", PE.file.get_16())
 		if size >= 4:
-			file.seek(start_byte)
-			decimal += str(" int32: ", file.get_32())
+			PE.file.seek(start_byte)
+			decimal += str(" int32: ", PE.file.get_32())
 		HEXVIEW_INFO.text += str("\n", decimal)
 func get_byte_offsets_from_selection():
 	var curr_start_line = HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value
@@ -600,39 +412,10 @@ func _on_Bytes_gui_input(_event):
 		HEXVIEW.deselect()
 		byte_selection = []
 	if Input.is_action_pressed("LMB") || Input.is_action_just_released("LMB"):
-		if file == null:
+		if PE.file == null:
 			byte_selection = []
 		else:
 			byte_selection = get_byte_offsets_from_selection()
-#			var curr_start_line = HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value
-#			if HEXVIEW == HEXVIEW_BYTES:
-#				var line_byte_offset = curr_start_line * 8
-#				if !HEXVIEW.is_selection_active():
-#					var clicked_byte = (HEXVIEW.cursor_get_column() / 3)
-#					var sel_column = clicked_byte * 3
-#					HEXVIEW.select(0, sel_column, 0, sel_column + 2)
-#					byte_selection = [
-#						clicked_byte + line_byte_offset
-#					]
-#				else:
-#					byte_selection = [
-#						HEXVIEW.get_selection_from_column() / 3 + line_byte_offset,
-#						HEXVIEW.get_selection_to_column() / 3 + 1 + line_byte_offset,
-#					]
-#			elif HEXVIEW == HEXVIEW_ASCII:
-#				var line_byte_offset = curr_start_line * 24
-#				if !HEXVIEW.is_selection_active():
-#					var clicked_byte = (HEXVIEW.cursor_get_column())
-#					var sel_column = clicked_byte
-#					HEXVIEW.select(0, sel_column, 0, sel_column)
-#					byte_selection = [
-#						clicked_byte + line_byte_offset
-#					]
-#				else:
-#					byte_selection = [
-#						HEXVIEW.get_selection_from_column() + line_byte_offset,
-#						HEXVIEW.get_selection_to_column() + line_byte_offset,
-#					]
 			update_hex_infobox()
 			if Input.is_action_just_released("LMB"):
 				update_hex_selection_from_code()
@@ -659,14 +442,14 @@ func _on_AsciiMode_toggled(button_pressed):
 onready var ASM = $VSplitContainer/Main/Code/Asm
 onready var ASM_SLIDER = $VSplitContainer/Main/Code/Asm/VSlider
 func update_asm_scrollbar_size():
-	if file != null:
+	if PE.file != null:
 		pass
 	else:
 		ASM_SLIDER.max_value = 0
 func update_asm_view():
 	ASM.clear()
 	ASM.create_item()
-	if file != null:
+	if PE.file != null:
 		var tree_item = ASM.create_item()
 		tree_item.set_text(0,"asda")
 func _on_VSlider_asm_scrolled():
@@ -706,7 +489,7 @@ func _ready():
 	GDNShell.GDN_INIT()
 	LOG_BOX.bbcode_text = ""
 	GDNShell.clear()
-	close_file()
+	_on_BtnClose_pressed()
 	PE.load_prodid_enums()
 	update_code_panel_height()
 
@@ -727,7 +510,7 @@ func _process(_delta):
 	FPS.text = str(Engine.get_frames_per_second(), " FPS")
 	
 	# has file open?
-	if file != null:
+	if PE.file != null:
 		BTN_CLOSE.disabled = false
 		BTN_RUN.disabled = false
 	else:
@@ -787,8 +570,11 @@ func _on_BtnOpen_pressed():
 func _on_BtnSave_pressed():
 	pass # Replace with function body.
 func _on_BtnClose_pressed():
-	GDNShell.stop()
-	close_file()
+	PE.close_file()
+	update_hex_scrollbar_size()
+	update_hex_view()
+	CHUNKS_LIST.clear()
+	CHUNKS_DATA.clear()
 
 func _on_BtnRun_pressed():
 	GDNShell.start()

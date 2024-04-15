@@ -18,10 +18,15 @@ func clear():
 func add_array_member(label, data):
 	var table_item = create_item()
 	
+	# columns width
 	set_column_min_width(0, 2)
 	for c in min(MAX_COLUMNS, data.size()):
 		set_column_min_width(c + 1, 5)
-		
+	
+	# index / label (column 0)
+	table_item.set_text(0, str(label))
+	
+	# fill in the data!
 	if DataStruct.is_valid(data):
 		table_item.set_text(1, DataStruct.as_text(data))
 	elif data is Array:
@@ -36,31 +41,21 @@ func add_array_member(label, data):
 				table_item.set_text(d + 1, str(item))
 	else:
 		table_item.set_text(1, data.text())
-	
-	# index/name
-#	if label.begins_with("unk"):
-#		table_item.set_text(0, "??")
-#		table_item.set_custom_color(0, Color(1,1,1,0.3))
-#	elif label.begins_with("unused"):
-#		table_item.set_text(0, str(label))
-#		table_item.set_custom_color(0, Color(1,1,1,0.3))
-#	else:
-	table_item.set_text(0, str(label))
 	return table_item
 func add_raw_field(label, data):
 	var table_item = create_item()
 	
-	# index/name
+	# index / label (column 0)
 	if label.begins_with("unk"):
 		table_item.set_text(0, "??")
 		table_item.set_custom_color(0, Color(1,1,1,0.3))
 	elif label.begins_with("unused"):
 		table_item.set_text(0, str(label))
-#		table_item.set_custom_color(0, Color(1,0.7,0.7,0.5))
 		table_item.set_custom_color(0, Color(1,1,1,0.3))
 	else:
 		table_item.set_text(0, str(label))
-		
+	
+	# fill in the data!
 	for i in data.size():
 		table_item.set_text(i + 1, str(data[i]))
 	return table_item
@@ -93,6 +88,18 @@ func present(key, data):
 			for e in data.size():
 				add_array_member(str(e), data[e])
 			return
+	elif data is Dictionary && data.get("_display_as_array", false) == true: # this is eh.... not worth it.
+		var first_element = data[data.keys()[1]]
+		var num_columns = first_element.keys().size()
+		columns = int(min(MAX_COLUMNS + 1, num_columns + 1)) # column 0 is reserved for name
+		set_column_title(0,"Name")
+		for c in min(MAX_COLUMNS, num_columns):
+			set_column_title(c + 1, str(first_element.keys()[c]))
+		for element in data:
+			if element == "_display_as_array":
+				continue
+			add_array_member(element, data[element])
+		return
 	
 	# any other case: raw data field items
 	columns = 4 # name, size, type, value

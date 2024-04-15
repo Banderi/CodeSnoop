@@ -77,16 +77,27 @@ func present(key, data):
 			set_column_min_width(1, 4)
 			set_column_min_width(2, 4)
 			set_column_min_width(3, 9)
-			for e in data.size():
-				add_raw_field(str(e), DataStruct.as_data_array(data[e]))
+			
+			var array_size = data.size()
+			if array_size > 1000:
+				add_raw_field("...", DataStruct.as_data_array(data[0]))
+			else:
+				for e in data.size():
+					add_raw_field(str(e), DataStruct.as_data_array(data[e]))
 			return
 		elif data[0] is Dictionary:
 			columns = int(min(MAX_COLUMNS + 1, data[0].size() + 1)) # column 0 is reserved for index
 			set_column_title(0,"#")
 			for c in min(MAX_COLUMNS, data[0].size()):
 				set_column_title(c + 1, str(data[0].keys()[c]))
-			for e in data.size():
-				add_array_member(str(e), data[e])
+			
+			
+			var array_size = data.size()
+			if array_size > 1000:
+				add_array_member("...", data[0])
+			else:
+				for e in data.size():
+					add_array_member(str(e), data[e])
 			return
 	elif data is Dictionary && data.get("_display_as_array", false) == true: # this is eh.... not worth it.
 		var first_element = data[data.keys()[1]]

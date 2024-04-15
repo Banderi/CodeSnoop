@@ -6,6 +6,12 @@ func MAX(bs):
 func u_to_i(unsigned, bs):
 	return DataStruct.u_to_i(unsigned, bs)
 
+func get_null_terminated_string(offset):
+	seek(offset)
+	var null_byte = str(0x00)
+	var csv = get_csv_line(null_byte)
+	return csv[0]
+
 func read(type, schema_index : int = -1, optional_formatting = null):
 	var offset = get_position()
 	if type is int:

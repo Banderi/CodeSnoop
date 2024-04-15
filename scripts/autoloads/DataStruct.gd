@@ -28,6 +28,9 @@ func type_to_size(type):
 	elif type.begins_with("str"):
 		size = type.to_int()
 		type = "[char]"
+	elif type.begins_with("utf"):
+		size = type.to_int()
+		type = "UTF-8"
 	elif type.begins_with("p"):
 		type = "addr"
 	return [type, size]
@@ -87,6 +90,8 @@ func as_text(item, with_value = null):
 		match item.type:
 			"[char]":
 				return (with_value as PoolByteArray).get_string_from_ascii()
+			"UTF-8":
+				return (with_value as PoolByteArray).get_string_from_utf8()
 			"bytes":
 				var bytes_text = "%02X %02X %02X %02X" % [with_value[0], with_value[1], with_value[2], with_value[3]]
 				if with_value.size() <= 4:

@@ -75,16 +75,6 @@ func close_file():
 	file = null
 	asm_chunks = {}
 
-
-
-var data_dirs_section_idx = []
-#var sections_info = []
-#var sections_data = []
-#func get_section_info(idx):
-#	pass
-#func get_section_data(idx):
-#	pass
-
 var asm_chunks = {}
 func read_data_directory_section():
 	return {
@@ -285,3 +275,74 @@ func read_asm_chunks():
 					if section_info.VirtualAddress.value == RVA:
 						data_dirs_section_idx.push_back(s)
 						break
+		
+		# COFF symbol table
+		var symbols_num = asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSymbols.value
+		if symbols_num > 0:
+			file.seek(asm_chunks._IMAGE_NT_HEADERS.FileHeader.PointerToSymbolTable.value)
+			asm_chunks["_COFF_SYMBOLS_TABLE"] = file.read(18 * symbols_num)
+		
+		# COFF string table
+		if file.get_position() < file.get_len():
+			coff_string_table_offset = file.get_position()
+			var string_table_size = file.read("u32") # this value includes the 4-byte size field itself, so 4 is the minimum.
+			asm_chunks["_COFF_STRING_TABLE"] = {
+				"TableSize": string_table_size,
+				"Data": file.read(string_table_size.value - 4)
+			}
+			
+			# update section names for the chunk view tree
+			var dupl = {}
+			for section_name in asm_chunks["_SECTIONS"]:
+				var section_field = asm_chunks["_SECTIONS"][section_name]
+				if section_name.begins_with("/"):
+					section_name = get_coff_string(section_name.to_int())
+				dupl[section_name] = section_field
+			asm_chunks["_SECTIONS"] = dupl
+		
+		
+		# Attribute certificate table
+		if file.get_position() < file.get_len():
+			pass # todo
+		
+		
+		
+		# Delay-load import table
+		if file.get_position() < file.get_len():
+			pass # todo
+		
+
+		return true
+
+## COFF Symbol Table
+func get_symbol(n):
+	var symbols_num = asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSymbols.value
+	if symbols_num == 0:
+		return null
+	file.seek(asm_chunks._IMAGE_NT_HEADERS.FileHeader.PointerToSymbolTable.value + 18 * n)
+	var shortname = null
+	var shortname_4bytes = file.get_32()
+	if shortname_4bytes == 0:
+		shortname = file.read("p32")
+	else:
+		file.seek(file.get_position() - 4)
+		shortname = file.read("utf8")
+	var data = {
+		"ShortName": shortname,
+		"Value": file.read("i32"),
+		"SectionNumber": file.read("i16"),
+		"Type": file.read("i16"),
+		"StorageClass": file.read("i8"),
+		"NumberOfAuxSymbols": file.read("i8")
+	}
+	return data
+
+## COFF String Table
+var coff_string_table_offset = -1
+func get_coff_string(offset):
+	if coff_string_table_offset == -1:
+		return null
+	return file.get_null_terminated_string(coff_string_table_offset + offset)
+
+## DATA DIRECTORIES
+var data_dirs_section_idx = []

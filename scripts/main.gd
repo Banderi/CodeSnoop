@@ -145,8 +145,12 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 					continue
 				total_bytes += recursive_fill_ChunkTable(item[k], table_item, str(k))
 		elif item is Array:
-			for e in item.size():
-				total_bytes += recursive_fill_ChunkTable(item[e], table_item, str("[",e,"]"))
+			var array_size = item.size()
+			if array_size > 1000:
+				total_bytes = array_size * recursive_fill_ChunkTable(item[0], table_item, str("[...]"))
+			else:
+				for e in array_size:
+					total_bytes += recursive_fill_ChunkTable(item[e], table_item, str("[",e,"]"))
 	
 	# set item name & size
 	if itemname != null:

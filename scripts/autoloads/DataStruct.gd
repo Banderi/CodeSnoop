@@ -36,7 +36,7 @@ func type_to_size(type):
 	return [type, size]
 
 var last_schema_memory_address = -1
-func new(type, value, display_formatting = null, data_offset = -1, schema_index = -1):
+func new(type, value, display_formatting = null, data_offset = -1):
 	var meta = type_to_size(type)
 	type = meta[0]
 	var size = meta[1]
@@ -47,16 +47,15 @@ func new(type, value, display_formatting = null, data_offset = -1, schema_index 
 		"value": value,
 		"display_formatting": display_formatting,
 		"offset": data_offset,
-		"schema_index": schema_index,
 	}
 	
 	# register to schema table...
 	return struct
-func xor_decrypt(bytes, key):
+func xor_decrypt(bytes, key, type):
 	var buffer = (bytes as Array).duplicate()
 	for i in buffer.size():
 		buffer[i] = buffer[i] ^ key[i % key.size()]
-	return buffer
+	return convert_bytes_to_type(buffer, type)
 
 onready var stream = StreamPeerBuffer.new()
 func convert_bytes_to_type(bytes, type):
@@ -78,7 +77,7 @@ func as_text(item, with_value = null):
 		return "[ ... ]"
 	if with_value == null:
 		if item.has("xor"):
-			with_value = xor_decrypt(item.value, item.xor)
+			with_value = xor_decrypt(item.value, item.xor, item.type)
 		else:
 			with_value = item.value
 	
@@ -93,20 +92,21 @@ func as_text(item, with_value = null):
 			"UTF-8":
 				return (with_value as PoolByteArray).get_string_from_utf8()
 			"bytes":
-				var bytes_text = "%02X %02X %02X %02X" % [with_value[0], with_value[1], with_value[2], with_value[3]]
 				if with_value.size() <= 4:
 					return "%02X %02X %02X %02X" % [with_value[0], with_value[1], with_value[2], with_value[3]]
 				return "%02X %02X %02X..." % [with_value[0], with_value[1], with_value[2]]
 			_:
 				return str(with_value)
 	else:
+		if item.display_formatting is Dictionary:
+			return Log.get_enum_string(item.display_formatting, with_value)
 		match item.display_formatting:
 			"bool":
 				return str(with_value as bool)
 			"string":
 				return (with_value as PoolByteArray).get_string_from_ascii()
 			"PRODID":
-				return PE.PRODID[with_value][1]
+				return PE.PRODID[with_value][1].trim_prefix("prodid")
 			_:
 				if item.type == "bytes":
 					match item.display_formatting:

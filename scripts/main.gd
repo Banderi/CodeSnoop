@@ -212,7 +212,7 @@ func update_code_panel_height():
 		code_height = CODE.rect_size.y
 		update_hex_scrollbar_size()
 		update_hex_view()
-func _on_VSplitContainer_dragged(offset):
+func _on_VSplitContainer_dragged(_offset):
 	update_code_panel_height()
 
 # hex view panel
@@ -256,38 +256,40 @@ func update_hex_view():
 		if HEXVIEW == HEXVIEW_BYTES:
 			var byte_start = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 8
 			var byte_length = min(8 * hex_view_visible_lines(), PE.file.get_len() - byte_start)
-			PE.file.seek(byte_start)
-			var buffer = PE.file.get_buffer(byte_length)
-			var l = 0
-			var b = 0
-			temp_offsets += "%08X" % [byte_start]
-			for byte in buffer:
-				temp_bytes += str("%02X " % [byte])
-				b += 1
-				if b >= 8 && l < hex_view_visible_lines() - 1:
-					b = 0
-					l += 1
-					temp_offsets += "\n%08X" % [byte_start + l * 8 + b]
+			if byte_length > 0:
+				PE.file.seek(byte_start)
+				var buffer = PE.file.get_buffer(byte_length)
+				var l = 0
+				var b = 0
+				temp_offsets += "%08X" % [byte_start]
+				for byte in buffer:
+					temp_bytes += str("%02X " % [byte])
+					b += 1
+					if b >= 8 && l < hex_view_visible_lines() - 1:
+						b = 0
+						l += 1
+						temp_offsets += "\n%08X" % [byte_start + l * 8 + b]
 		elif HEXVIEW == HEXVIEW_ASCII:
 			var byte_start = (HEXVIEW_SLIDER.max_value - HEXVIEW_SLIDER.value) * 24
 			var byte_length = min(24 * hex_view_visible_lines(), PE.file.get_len() - byte_start)
-			PE.file.seek(byte_start)
-			var buffer = PE.file.get_buffer(byte_length)
-			var l = 0
-			var b = 0
-			temp_offsets += "%08X" % [byte_start]
-			for byte in buffer:
-				var c = value_as_ascii(byte)
-				if c == "":
-					c = "."
-				if c == " ":
-					c = " " # <-- U+00A0 (no-break space)
-				temp_bytes += str(c)
-				b += 1
-				if b >= 24 && l < hex_view_visible_lines() - 1:
-					b = 0
-					l += 1
-					temp_offsets += "\n%08X" % [byte_start + l * 24 + b]
+			if byte_length > 0:
+				PE.file.seek(byte_start)
+				var buffer = PE.file.get_buffer(byte_length)
+				var l = 0
+				var b = 0
+				temp_offsets += "%08X" % [byte_start]
+				for byte in buffer:
+					var c = value_as_ascii(byte)
+					if c == "":
+						c = "."
+					if c == " ":
+						c = " " # <-- U+00A0 (no-break space)
+					temp_bytes += str(c)
+					b += 1
+					if b >= 24 && l < hex_view_visible_lines() - 1:
+						b = 0
+						l += 1
+						temp_offsets += "\n%08X" % [byte_start + l * 24 + b]
 		
 	HEXVIEW.text = temp_bytes
 	HEXVIEW_ADDRESS.text = temp_offsets

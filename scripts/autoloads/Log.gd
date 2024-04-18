@@ -12,11 +12,16 @@ func limit_array(arr, limit = MAX_LINES_IN_CONSOLE):
 		arr.pop_front()
 
 func get_enum_string(enums, value):
-	var e = value
-	var keys = enums.keys()
-	while enums[keys[e]] != value && enums[keys[e]] > value:
-		e -= 1
-	return keys[e]
+#	var e = value
+#	var keys = enums.keys()
+#	while enums[keys[e]] != value && enums[keys[e]] > value:
+#		e -= 1
+#	return keys[e]
+	for key in enums.keys():
+		if enums[key] == value:
+			return key
+	return null
+	
 func get_timestamp(from):
 	var d = OS.get_datetime()
 	var date = "%04d/%02d/%02d %02d:%02d:%02d" % [d.year, d.month, d.day, d.hour, d.minute, d.second]

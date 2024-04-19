@@ -36,9 +36,9 @@ func read(type, optional_formatting = null):
 			return DataStruct.new(type, get_64(), optional_formatting, offset)
 #		"i64":
 #			return DataStruct.new(type, u_to_i(get_64(),64), optional_formatting, offset)
-		"p32":
+		"p32", "rva32":
 			return DataStruct.new(type, u_to_i(get_32(),32), "0x%08X", offset)
-		"p64":
+		"p64", "rva64":
 			return DataStruct.new(type, get_64(), "0x%016X", offset)
 		_:
 			return DataStruct.new(type, get_buffer(str(type).to_int()), optional_formatting, offset)

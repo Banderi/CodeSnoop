@@ -124,7 +124,7 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 	if itemname != null:
 		table_item = CHUNKS_LIST.create_item(parent)
 		table_item.collapsed = true
-		if itemname.begins_with("unk"):
+		if itemname.begins_with("unk") || itemname.begins_with("unmapped"):
 			itemname = "??"
 			table_item.set_custom_color(0, Color(1,1,1,0.3))
 		elif itemname.begins_with("unused"):
@@ -160,8 +160,12 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 		else:
 			table_item.set_text(0, str(itemname," (",total_bytes,")"))
 	
-		if item is Dictionary && item.has("type") && item.type == "addr":
-			table_item.set_custom_color(0, Color(0.0,0.4,0.8))
+		if DataStruct.is_valid(item):
+			match item.type:
+				"addr":
+					table_item.set_custom_color(0, Color(0.0,0.4,0.8))
+				"rva":
+					table_item.set_custom_color(0, Color(0.2,0.6,0.7))
 		
 	
 	# add metadata to the first cell:
@@ -200,8 +204,14 @@ func _on_ChunkTable_item_activated():
 	selection.collapsed = !selection.collapsed
 	var metadata = selection.get_metadata(0)
 	var data = metadata[1]
-	if data is Dictionary && "type" in data && data.type == "addr":
-		hex_scroll_to(data.value, data.value + 4)
+	if DataStruct.is_valid(data):
+		match data.type:
+			"addr":
+				hex_scroll_to(data.value, data.value + 4)
+			"rva":
+				var file_offset = PE.RVA_to_file_offset(data.value)
+				if file_offset != null:
+					hex_scroll_to(file_offset, file_offset + 4)
 
 ##### CODING / MAIN PANELS
 var code_height = 0
@@ -344,7 +354,9 @@ func update_hex_selection_from_code():
 	update_hex_infobox()
 func update_hex_infobox():
 	HEXVIEW_INFO.text = ""
+	BTN_CHANGE_ADDR.hide()
 	if PE.file != null && byte_selection != []:
+		BTN_CHANGE_ADDR.show()
 		# byte offsets
 		var start_byte = byte_selection[0]
 		var end_byte = start_byte
@@ -426,6 +438,9 @@ func _on_Bytes_gui_input(_event):
 			if Input.is_action_just_released("LMB"):
 				update_hex_selection_from_code()
 func _on_Bytes_cursor_changed():
+	# BUG: in the ASCII view panel, you can not drag-select the last character of any line.
+	# this is due to the text wrapping which in Godot prevents the cursor from registering
+	# past the last character - it requires the \n character to be present at the end of a line.
 	if !just_scrolled:
 		byte_selection = get_byte_offsets_from_selection()
 		update_hex_infobox()
@@ -511,6 +526,7 @@ onready var BTN_PAUSE = $Top/Buttons/HBoxContainer/BtnBreak
 onready var BTN_STEP_BACK = $Top/Buttons/HBoxContainer/BtnBack
 onready var BTN_STEP_FORWARD = $Top/Buttons/HBoxContainer/BtnStep
 onready var BTN_VISIBLE_PROGRAM = $Top/Buttons/Control/BtnVisibleProgram
+onready var BTN_CHANGE_ADDR = $VSplitContainer/Main/Hex/Info/Control/Txt/BtnAddr
 func _process(_delta):
 	log_do_scroll()
 	FPS.text = str(Engine.get_frames_per_second(), " FPS")
@@ -563,6 +579,10 @@ func _input(_event):
 	if Input.is_action_just_pressed("ui_cancel"):
 		if OPEN_DIALOG.visible:
 			OPEN_DIALOG.hide()
+		if GOTO_DIALOG.visible:
+			GOTO_DIALOG.hide()
+	if Input.is_action_just_pressed("go_to_address"):
+		_on_BtnAddr_pressed()
 
 func _on_focus_change_intercept(node):
 	if node != BTN_RECENT && node.get_parent() != BTN_RECENT_LIST:
@@ -603,9 +623,19 @@ func _on_BtnClearLog_pressed():
 func _on_BtnVisibleProgram_toggled(button_pressed):
 	GDNShell.hidden_process_window = !button_pressed
 
-
-
-
-
-
-
+onready var GOTO_DIALOG = $GoToDialog
+func _on_LineEdit_text_entered(new_text):
+	if !new_text.begins_with("0x"):
+		new_text = str("0x",new_text)
+	var byte = new_text.hex_to_int()
+	hex_scroll_to(byte, byte + 4)
+	GOTO_DIALOG.hide()
+func _on_BtnAddr_pressed():
+	GOTO_DIALOG.popup()
+	if byte_selection.size() > 0:
+		$GoToDialog/LineEdit.text = "0x%08X" % [byte_selection[0]]
+	else:
+		$GoToDialog/LineEdit.text = "0x%s" % [HEXVIEW_ADDRESS.text.split("\n")[0]]
+	$GoToDialog/LineEdit.grab_focus()
+	$GoToDialog/LineEdit.select(2,-1)
+	$GoToDialog/LineEdit.caret_position = 999999

@@ -15,9 +15,9 @@ func type_to_size(type):
 			size = 1
 		"u16","i16":
 			size = 2
-		"u32","i32","p32":
+		"u32","i32","p32","rva32":
 			size = 4
-		"u64","i64","p64":
+		"u64","i64","p64","rva64":
 			size = 8
 	if type is int:
 		size = type
@@ -33,6 +33,8 @@ func type_to_size(type):
 		type = "UTF-8"
 	elif type.begins_with("p"):
 		type = "addr"
+	elif type.begins_with("rva"):
+		type = "rva"
 	return [type, size]
 
 var last_schema_memory_address = -1

@@ -46,7 +46,7 @@ func add_raw_field(label, data):
 	var table_item = create_item()
 	
 	# index / label (column 0)
-	if label.begins_with("unk"):
+	if label.begins_with("unk") || label.begins_with("unmapped"):
 		table_item.set_text(0, "??")
 		table_item.set_custom_color(0, Color(1,1,1,0.3))
 	elif label.begins_with("unused"):

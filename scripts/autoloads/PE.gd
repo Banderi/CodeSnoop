@@ -99,6 +99,45 @@ enum IMAGE_SUBSYSTEM {
 	#
 	WINDOWS_BOOT_APPLICATION = 16	# Windows boot application
 }
+enum SECTION_CHARACTERISTICS {
+	TYPE_NO_PAD = 0x00000008				# The section should not be padded to the next boundary. This flag is obsolete and is replaced by IMAGE_SCN_ALIGN_1BYTES. This is valid only for object files.
+	#
+	CNT_CODE = 0x00000020					# The section contains executable code.
+	CNT_INITIALIZED_DATA = 0x00000040		# The section contains initialized data.
+	CNT_UNINITIALIZED_DATA = 0x00000080		# The section contains uninitialized data.
+	LNK_OTHER = 0x00000100					# Reserved for future use.
+	LNK_INFO = 0x00000200					# The section contains comments or other information. The .drectve section has this type. This is valid for object files only.
+	#
+	LNK_REMOVE = 0x00000800					# The section will not become part of the image. This is valid only for object files.
+	LNK_COMDAT = 0x00001000					# The section contains COMDAT data. For more information, see COMDAT Sections (Object Only). This is valid only for object files.
+	GPREL = 0x00008000						# The section contains data referenced through the global pointer (GP).
+	MEM_PURGEABLE = 0x00020000				# Reserved for future use.
+	MEM_16BIT = 0x00020000					# Reserved for future use.
+	MEM_LOCKED = 0x00040000					# Reserved for future use.
+	MEM_PRELOAD = 0x00080000				# Reserved for future use.
+	ALIGN_1BYTES = 0x00100000				# Align data on a 1-byte boundary. Valid only for object files.
+	ALIGN_2BYTES = 0x00200000				# Align data on a 2-byte boundary. Valid only for object files.
+	ALIGN_4BYTES = 0x00300000				# Align data on a 4-byte boundary. Valid only for object files.
+	ALIGN_8BYTES = 0x00400000				# Align data on an 8-byte boundary. Valid only for object files.
+	ALIGN_16BYTES = 0x00500000				# Align data on a 16-byte boundary. Valid only for object files.
+	ALIGN_32BYTES = 0x00600000				# Align data on a 32-byte boundary. Valid only for object files.
+	ALIGN_64BYTES = 0x00700000				# Align data on a 64-byte boundary. Valid only for object files.
+	ALIGN_128BYTES = 0x00800000				# Align data on a 128-byte boundary. Valid only for object files.
+	ALIGN_256BYTES = 0x00900000				# Align data on a 256-byte boundary. Valid only for object files.
+	ALIGN_512BYTES = 0x00A00000				# Align data on a 512-byte boundary. Valid only for object files.
+	ALIGN_1024BYTES = 0x00B00000			# Align data on a 1024-byte boundary. Valid only for object files.
+	ALIGN_2048BYTES = 0x00C00000			# Align data on a 2048-byte boundary. Valid only for object files.
+	ALIGN_4096BYTES = 0x00D00000			# Align data on a 4096-byte boundary. Valid only for object files.
+	ALIGN_8192BYTES = 0x00E00000			# Align data on an 8192-byte boundary. Valid only for object files.
+	LNK_NRELOC_OVFL = 0x01000000			# The section contains extended relocations.
+	MEM_DISCARDABLE = 0x02000000			# The section can be discarded as needed.
+	MEM_NOT_CACHED = 0x04000000				# The section cannot be cached.
+	MEM_NOT_PAGED = 0x08000000				# The section is not pageable.
+	MEM_SHARED = 0x10000000					# The section can be shared in memory.
+	MEM_EXECUTE = 0x20000000				# The section can be executed as code.
+	MEM_READ = 0x40000000					# The section can be read.
+	MEM_WRITE = 0x80000000					# The section can be written to.
+}
 enum DLL_CHARACTERISTICS {
 	HIGH_ENTROPY_VA = 0x0020		# Image can handle a high entropy 64-bit virtual address space.
 	DYNAMIC_BASE = 0x0040			# DLL can be relocated at load time.
@@ -169,7 +208,7 @@ func close_file():
 var asm_chunks = {}
 func read_data_directory_section():
 	return {
-		"VirtualAddress": file.read("p32"),
+		"VirtualAddress": file.read("rva32"),
 		"Size": file.read("u32")
 	}
 func read_asm_chunks():
@@ -326,11 +365,12 @@ func read_asm_chunks():
 		
 		# Section headers
 		asm_chunks["_SECTION_HEADERS"] = {}
+		PE_SECTIONS_ARRAY = []
 		for _i in range(0,asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSections.value):
 			var section = {
 				"Name": file.read("str8"),
-				"Misc": file.read("u32"),
-				"VirtualAddress": file.read("p32"),
+				"VirtualSize": file.read("u32"),
+				"VirtualAddress": file.read("rva32"),
 				"SizeOfRawData": file.read("u32"),
 				"PointerToRawData": file.read("p32"),
 				"PointerToRelocations": file.read("p32"),
@@ -340,57 +380,17 @@ func read_asm_chunks():
 				"Characteristics": file.read("u32"),
 			}
 			var section_name = DataStruct.as_text(section.Name)
+			if section_name in asm_chunks["_SECTION_HEADERS"]:
+				section_name += str(_i)
 			asm_chunks["_SECTION_HEADERS"][section_name] = section
-		
-		# Sections data
-		asm_chunks["_SECTIONS"] = {}
-		var last_section_offset = 0
-		while true:
-			var lowest_next_section_offset = -1
-			var next_section_name = ""
-			
-			# go through all the sections and find the next/lowest one in memory
-			for section_name in asm_chunks["_SECTION_HEADERS"]:
-				var offset = asm_chunks["_SECTION_HEADERS"][section_name].PointerToRawData.value
-				if offset > last_section_offset && (offset < lowest_next_section_offset || lowest_next_section_offset == -1):
-					if asm_chunks["_SECTION_HEADERS"][section_name].SizeOfRawData.value > 0: # make sure the section has valid data
-						lowest_next_section_offset = offset
-						next_section_name = section_name
-			if lowest_next_section_offset == -1 || lowest_next_section_offset <= last_section_offset: # loop finished!
-				break
-			else:
-				# add the found section to the ordered list
-				last_section_offset = lowest_next_section_offset
-				asm_chunks["_SECTIONS"][next_section_name] = {}
-		# fill in section data
-		for section_name in asm_chunks["_SECTIONS"]:
-			var section_info = asm_chunks["_SECTION_HEADERS"][section_name]
-			var size = section_info.SizeOfRawData.value
-			if size < 1:
-				continue
-			var offset = section_info.PointerToRawData.value
-			file.seek(offset)
-			asm_chunks["_SECTIONS"][section_name] = file.read(size)
-
-		# Compile lookups of data directories & section headers
-		for i in range(0,16):
-			var data_dir = asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory[DATA_DIRECTORIES.keys()[i]]
-			var RVA = data_dir.VirtualAddress.value
-			if RVA == 0x00000000:
-				data_dirs_section_idx.push_back(-1)
-			else:
-				for s in asm_chunks["_SECTION_HEADERS"].keys().size():
-					var section_name = asm_chunks["_SECTION_HEADERS"].keys()[s]
-					var section_info = asm_chunks["_SECTION_HEADERS"][section_name]
-					if section_info.VirtualAddress.value == RVA:
-						data_dirs_section_idx.push_back(s)
-						break
-		
+			PE_SECTIONS_ARRAY.push_back(section)
+		asm_chunks["_SECTIONS"] = {} # we fill this section later, but it's positioned here.
 		
 		# COFF symbol table
 		var symbols_num = asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSymbols.value
 		if symbols_num > 0:
-			file.seek(asm_chunks._IMAGE_NT_HEADERS.FileHeader.PointerToSymbolTable.value)
+			coff_symbol_table_offset = asm_chunks._IMAGE_NT_HEADERS.FileHeader.PointerToSymbolTable.value
+			file.seek(coff_symbol_table_offset)
 			asm_chunks["_COFF_SYMBOLS_TABLE"] = file.read(18 * symbols_num)
 		
 			# COFF string table -- this will come right after the symbol table 99.99% of the cases..
@@ -402,23 +402,17 @@ func read_asm_chunks():
 					"Data": file.read(string_table_size.value - 4)
 				}
 				
-				# update section names for the chunk view tree
-				var dupl = {}
-				for section_name in asm_chunks["_SECTIONS"]:
-					var section_field = asm_chunks["_SECTIONS"][section_name]
-					if section_name.begins_with("/"):
-						section_name = get_coff_string(section_name.to_int())
-					dupl[section_name] = section_field
-				asm_chunks["_SECTIONS"] = dupl
-				
 				# move to the end of the section
 				file.seek(coff_string_table_offset + string_table_size.value)
+			else:
+				coff_string_table_offset = -1
+		else:
+			coff_symbol_table_offset = -1
 		
 		# Attribute certificate table
-		var DATA_DIR_CERT_CHUNK = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY
-		var cert_table_offset = DATA_DIR_CERT_CHUNK.VirtualAddress.value
-		var cert_table_size = DATA_DIR_CERT_CHUNK.Size.value
-		if cert_table_offset > 0 && cert_table_size > 0:
+		if valid_data_directory("SECURITY"):
+			var cert_table_offset = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY.VirtualAddress.value
+			var cert_table_size = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY.Size.value
 			asm_chunks["_ATTRIBUTE_CERTIFICATE_TABLE"] = []
 			var adv = 0
 			while adv < cert_table_size:
@@ -437,14 +431,157 @@ func read_asm_chunks():
 			else:
 				Log.generic(null,"read %d certificate entries for %d total bytes" % [asm_chunks["_ATTRIBUTE_CERTIFICATE_TABLE"].size(), cert_table_size])
 		
+		##### DATA DIRECTORIES
+		
+		# .edata
+		edata_table_offset = data_dir_offset("EXPORT")
+		if edata_table_offset != -1:
+			file.seek(edata_table_offset)
+		
+		# .idata
+		idata_table_offset = data_dir_offset("IMPORT")
+		if idata_table_offset != -1:
+			file.seek(idata_table_offset)
+			idata_table_entries = []
+			while true: # import directory table
+				var entry = {
+					"VirtualAddress": file.read("rva32"),
+					"TimeDateStamp": file.read("u32"),
+					"ForwarderChain": file.read("u32"),
+					"NameAddress": file.read("rva32"),
+					"ImportAddressTableThunk": file.read("rva32")
+				}
+				idata_table_entries.push_back(entry)
+				if entry.VirtualAddress.value == 0: # last entry reached
+					break
+		
+		
+		# IAT
+		iat_offset = data_dir_offset("IAT")
+		
+		
+		
+		
+		
+		#####
+		
+		# Fill in the actual section data
+		for i in asm_chunks["_SECTION_HEADERS"].size():
+			var section_name = asm_chunks["_SECTION_HEADERS"].keys()[i]
+			var section_info = asm_chunks["_SECTION_HEADERS"][section_name]
+			var size = section_info.SizeOfRawData.value
+			if size < 1:
+				continue
+			
+			# determine if some data directory table has been found inside this section
+			var mapped_subsections = []
+			var section_start = section_info.PointerToRawData.value
+			for dir_name in asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory:
+				if dir_name == "SECURITY":
+					continue # this does not map to a PE section
+				if data_dir_section(dir_name) == section_info:
+					if dir_name == "DEBUG":
+						pass
+					var dir_offset = data_dir_offset(dir_name)
+					if dir_offset == idata_table_offset:
+						pass
+					mapped_subsections.push_back({
+						"offset": dir_offset,
+						"size": asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory[dir_name].Size.value,
+						"name": dir_name
+					})
+			mapped_subsections.sort_custom(self, "sort_by_offset")
+			
+			# go through the found mapped subsections (if any) and read the file chunks accordingly, spacing out
+			# with any unmapped data in between if necessary
+			var chunk = {}
+			file.seek(section_start)
+			if mapped_subsections.size() == 0:
+				chunk = file.read(size)
+			else:
+				var last_mapped_offset = section_start
+				for s in range(0, mapped_subsections.size()):
+					
+					# unmapped bytes since the last mapped chunk
+					var unammped_bytes = mapped_subsections[s].offset - last_mapped_offset
+					if unammped_bytes > 0:
+						chunk[str("unmapped",file.get_position())] = file.read(unammped_bytes)
+						last_mapped_offset += unammped_bytes
+					
+					# mapped chunk
+					match mapped_subsections[s].name:
+						"IMPORT":
+							chunk[mapped_subsections[s].name] = idata_table_entries
+						"DEBUG":
+							chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
+						_:
+							chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
+					
+					# advance pointer
+					last_mapped_offset = mapped_subsections[s].offset + mapped_subsections[s].size
+				
+				# append any unmapped leftover bytes if present
+				var bytes_left = (section_start + size) - file.get_position()
+				if bytes_left > 0:
+					chunk[str("unmapped",file.get_position())] = file.read(bytes_left)
+			
+			# update section name from COFF string format when needed
+			if section_name.begins_with("/"):
+				section_name = get_coff_string(section_name.to_int())
+			asm_chunks["_SECTIONS"][section_name] = chunk
+		
 		return true
+		
+## DATA DIRECTORIES & RVA
+var PE_SECTIONS_ARRAY = []
+func RVA_to_section(rva):
+	if file == null:
+		return null
+	var section_idx = null
+	for i in asm_chunks["_SECTION_HEADERS"].size():
+		var section_name = asm_chunks["_SECTION_HEADERS"].keys()[i]
+		var section_info = asm_chunks["_SECTION_HEADERS"][section_name]
+		var section_rva = section_info.VirtualAddress.value
+		var virtualsize = section_info.VirtualSize.value
+		if rva >= section_rva && rva < section_rva + virtualsize:
+			section_idx = i
+	if section_idx != null:
+		return PE_SECTIONS_ARRAY[section_idx]
+	return null
+func RVA_to_file_offset(rva):
+	var section = RVA_to_section(rva)
+	if section == null:
+		return null
+	var rva_offset = rva - section.VirtualAddress.value
+	var raw_address = section.PointerToRawData.value + rva_offset
+	return raw_address
+func valid_data_directory(dir_name):
+	var chunk = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name]
+	if chunk.VirtualAddress.value > 0 && chunk.Size.value > 0:
+		return true
+	return false
+func data_dir_offset(dir_name):
+	if !valid_data_directory(dir_name):
+		return -1
+	return RVA_to_file_offset(asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name].VirtualAddress.value)
+func data_dir_section(dir_name):
+	if !valid_data_directory(dir_name):
+		return null
+	return RVA_to_section(asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name].VirtualAddress.value)
+func sort_by_offset(a, b):
+	if a.offset < b.offset:
+		return true
+	return false
 
 ## COFF Symbol Table
+var coff_symbol_table_offset = -1
 func get_symbol(n):
+	if file == null:
+		return null
 	var symbols_num = asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSymbols.value
 	if symbols_num == 0:
 		return null
-	file.seek(asm_chunks._IMAGE_NT_HEADERS.FileHeader.PointerToSymbolTable.value + 18 * n)
+	file.seek(coff_symbol_table_offset + 18 * n)
 	var shortname = null
 	var shortname_4bytes = file.get_32()
 	if shortname_4bytes == 0:
@@ -469,11 +606,15 @@ func get_coff_string(offset):
 		return null
 	return file.get_null_terminated_string(coff_string_table_offset + offset)
 
-## DATA DIRECTORIES
-var data_dirs_section_idx = []
+## .edata
+var edata_table_offset = -1
 
+## .idata
+var idata_table_offset = -1
+var idata_table_entries = []
 
-
+## IAT
+var iat_offset = -1
 
 
 # Dictionary of common PE file sections and descriptions. 

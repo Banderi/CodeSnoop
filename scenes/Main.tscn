@@ -151,7 +151,7 @@ caret_blink = true
 visible = false
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = 75.0
+margin_left = 71.0
 margin_right = -1.0
 custom_constants/line_spacing = -1
 custom_fonts/font = ExtResource( 4 )
@@ -166,7 +166,7 @@ caret_blink = true
 [node name="Bleed" type="ColorRect" parent="VSplitContainer/Main/Hex/Top"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-margin_left = 242.0
+margin_left = 246.0
 margin_right = 1.0
 color = Color( 0, 0, 0, 1 )
 
@@ -205,6 +205,16 @@ text = "0x00000048-00000092
 int8: 33 int16: 47137
 int32: 1275181089"
 readonly = true
+
+[node name="BtnAddr" type="Button" parent="VSplitContainer/Main/Hex/Info/Control/Txt"]
+visible = false
+margin_left = -2.0
+margin_top = -3.0
+margin_right = 142.0
+margin_bottom = 18.0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+flat = true
 
 [node name="AsciiMode" type="CheckButton" parent="VSplitContainer/Main/Hex/Info"]
 anchor_left = 1.0
@@ -650,6 +660,29 @@ access = 2
 filters = PoolStringArray( "*.exe", "*.dll", "*.sys" )
 show_hidden_files = true
 
+[node name="GoToDialog" type="WindowDialog" parent="."]
+visible = true
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+margin_left = -83.0
+margin_top = -30.0
+margin_right = 84.0
+margin_bottom = 30.0
+popup_exclusive = true
+window_title = "Go to..."
+
+[node name="LineEdit" type="LineEdit" parent="GoToDialog"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 25.0
+margin_top = 18.0
+margin_right = -25.0
+margin_bottom = -18.0
+custom_fonts/font = ExtResource( 4 )
+caret_blink = true
+
 [connection signal="dragged" from="VSplitContainer" to="." method="_on_VSplitContainer_dragged"]
 [connection signal="cursor_changed" from="VSplitContainer/Main/Hex/Top/Bytes" to="." method="_on_Bytes_cursor_changed"]
 [connection signal="gui_input" from="VSplitContainer/Main/Hex/Top/Bytes" to="." method="_on_Bytes_gui_input"]
@@ -657,6 +690,7 @@ show_hidden_files = true
 [connection signal="gui_input" from="VSplitContainer/Main/Hex/Top/Ascii" to="." method="_on_Bytes_gui_input"]
 [connection signal="scrolled" from="VSplitContainer/Main/Hex/Top/VSlider" to="." method="_on_VScrollBarHexView_scrolling"]
 [connection signal="value_changed" from="VSplitContainer/Main/Hex/Top/VSlider" to="VSplitContainer/Main/Hex/Top/VSlider" method="_on_VSlider_value_changed"]
+[connection signal="pressed" from="VSplitContainer/Main/Hex/Info/Control/Txt/BtnAddr" to="." method="_on_BtnAddr_pressed"]
 [connection signal="toggled" from="VSplitContainer/Main/Hex/Info/AsciiMode" to="." method="_on_AsciiMode_toggled"]
 [connection signal="cell_selected" from="VSplitContainer/Main/Code/Chunks/List" to="." method="_on_ChunkTable_cell_selected"]
 [connection signal="item_activated" from="VSplitContainer/Main/Code/Chunks/List" to="." method="_on_ChunkTable_item_activated"]
@@ -678,3 +712,4 @@ show_hidden_files = true
 [connection signal="open_file" from="Top/ItemList/BtnRecentFile" to="." method="_on_BtnRecentFile_pressed"]
 [connection signal="open_file" from="Top/ItemList/BtnRecentFile2" to="." method="_on_BtnRecentFile_pressed"]
 [connection signal="file_selected" from="OpenDialog" to="." method="_on_OpenDialog_file_selected"]
+[connection signal="text_entered" from="GoToDialog/LineEdit" to="." method="_on_LineEdit_text_entered"]

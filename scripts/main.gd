@@ -88,6 +88,7 @@ func PE_open(path):
 		
 		# asm chunks & disassembler
 		fill_ChunkTable()
+		fill_ImportExportEtcTables()
 		update_asm_scrollbar_size()
 		update_asm_view()
 		
@@ -97,8 +98,8 @@ func _on_OpenDialog_file_selected(path):
 	PE_open(path)
 
 # chunks list & chunk data panel
-onready var CHUNKS_LIST = $VSplitContainer/Main/Code/Chunks/List
-onready var CHUNKS_DATA = $VSplitContainer/Main/Code/Chunks/Data
+onready var CHUNKS_LIST = $VSplitContainer/Main/Middle/Chunks/List
+onready var CHUNKS_DATA = $VSplitContainer/Main/Middle/Chunks/Data
 func fill_ChunkTable():
 	CHUNKS_LIST.clear()
 	var root = CHUNKS_LIST.create_item()
@@ -213,17 +214,58 @@ func _on_ChunkTable_item_activated():
 				if file_offset != null:
 					hex_scroll_to(file_offset, file_offset + 4)
 
+# imports / exports / data directories / etc. tables
+onready var EXPORTS_TABLE = $VSplitContainer/Main/TabContainer/Exports
+onready var IMPORTS_TABLE = $VSplitContainer/Main/TabContainer/Imports
+func fill_ImportExportEtcTables():
+	# imports
+	IMPORTS_TABLE.clear()
+	IMPORTS_TABLE.create_item()
+	if PE.idata_table_offset != -1 && PE.idata_table_entries.size() != 0:
+		var dll_names_tree_items = {}
+		for e in range(0, PE.idata_table_entries.size() - 1):
+			var entry = PE.idata_table_entries[e]
+			var dll_name_address = PE.RVA_to_file_offset(entry.Name1.value)
+			var dll_name = PE.file.get_null_terminated_string(dll_name_address)
+			var parent_item = null
+			if !dll_names_tree_items.has(dll_name):
+				parent_item = IMPORTS_TABLE.create_item()
+#				parent_item.collapsed = true
+				dll_names_tree_items[dll_name] = parent_item
+			else:
+				parent_item = dll_names_tree_items[dll_name]
+			
+			var num_imports_in_parent = 0
+			for l in range(0, PE.ilt_tables[e].size() - 1):
+				add_import_lookup_table_entry(parent_item, e, l)
+				num_imports_in_parent += 1
+			
+			parent_item.set_text(0,"%s (%d)" % [dll_name, num_imports_in_parent])
+func bin_string(bytes : PoolByteArray):
+	var ret_str = ""
+	for b in bytes:
+		var n = int(b)
+		for _i in range(0,8):
+			ret_str = String(n&1) + ret_str
+			n = n>>1
+	return ret_str
+func add_import_lookup_table_entry(parent_item, e, l):
+	var item = IMPORTS_TABLE.create_item(parent_item)
+	var thunk_data = PE.get_import_thunk(e, l, true)
+	item.set_text(0, "%s : %s" % (["ord", thunk_data.ordinal] if thunk_data.is_ordinal else ["rva", thunk_data.fn_name]))
+	
+
 ##### CODING / MAIN PANELS
-var code_height = 0
-onready var CODE = $VSplitContainer/Main/Code
-func update_code_panel_height():
+var middle_height = 0
+onready var MIDDLE = $VSplitContainer/Main/Middle
+func update_middle_panel_height():
 	# use the hex view slider as an arbitrary reference point for height
-	if code_height != CODE.rect_size.y:
-		code_height = CODE.rect_size.y
+	if middle_height != MIDDLE.rect_size.y:
+		middle_height = MIDDLE.rect_size.y
 		update_hex_scrollbar_size()
 		update_hex_view()
 func _on_VSplitContainer_dragged(_offset):
-	update_code_panel_height()
+	update_middle_panel_height()
 
 # hex view panel
 onready var HEXVIEW_BYTES = $VSplitContainer/Main/Hex/Top/Bytes
@@ -235,7 +277,7 @@ onready var HEXVIEW = HEXVIEW_BYTES
 var byte_selection = []
 var just_scrolled = false
 func hex_view_visible_lines():
-	return floor(code_height / (16 + HEXVIEW.get("custom_constants/line_spacing"))) - 4
+	return floor(middle_height / (16 + HEXVIEW.get("custom_constants/line_spacing"))) - 4
 func update_hex_scrollbar_size():
 	if PE.file != null:
 		# remember the previous relative position/scroll percentage
@@ -460,8 +502,8 @@ func _on_AsciiMode_toggled(button_pressed):
 	update_hex_scrollbar_size()
 
 # asm / disassembler
-onready var ASM = $VSplitContainer/Main/Code/Asm
-onready var ASM_SLIDER = $VSplitContainer/Main/Code/Asm/VSlider
+onready var ASM = $VSplitContainer/Main/Middle/Code/Asm
+onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/Asm/VSlider
 func update_asm_scrollbar_size():
 	if PE.file != null:
 		pass
@@ -512,7 +554,11 @@ func _ready():
 	GDNShell.clear()
 	_on_BtnClose_pressed()
 	PE.load_prodid_enums()
-	update_code_panel_height()
+	update_middle_panel_height()
+	
+	# syntax highlighting
+	HEXVIEW_BYTES.clear_colors()
+	HEXVIEW_BYTES.add_keyword_color("00", Color("767676")) #81ff9200
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 onready var CONSOLE_TERMINAL = $VSplitContainer/Footer/Console/Terminal
@@ -583,13 +629,16 @@ func _input(_event):
 			GOTO_DIALOG.hide()
 	if Input.is_action_just_pressed("go_to_address"):
 		_on_BtnAddr_pressed()
+	if Input.is_action_just_pressed("backspace"):
+		fill_ImportExportEtcTables()
+		Log.generic(null,"reloaded!")
 
 func _on_focus_change_intercept(node):
 	if node != BTN_RECENT && node.get_parent() != BTN_RECENT_LIST:
 		close_recent_dropdown()
 
 func _on_viewport_size_changed():
-	update_code_panel_height()
+	update_middle_panel_height()
 
 func _on_BtnOpen_pressed():
 	OPEN_DIALOG.popup_centered()
@@ -601,6 +650,8 @@ func _on_BtnClose_pressed():
 	update_hex_view()
 	CHUNKS_LIST.clear()
 	CHUNKS_DATA.clear()
+	EXPORTS_TABLE.clear()
+	IMPORTS_TABLE.clear()
 
 func _on_BtnRun_pressed():
 	GDNShell.start()

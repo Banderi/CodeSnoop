@@ -206,6 +206,9 @@ func close_file():
 	asm_chunks = {}
 
 var asm_chunks = {}
+func throw_file_read_error(msg):	
+	Log.error(null,GlobalScope.Error.ERR_FILE_CORRUPT,msg)
+	return false
 func read_data_directory_section():
 	return {
 		"VirtualAddress": file.read("rva32"),
@@ -217,6 +220,7 @@ func read_asm_chunks():
 		file.seek(0)
 		
 		# DOS header
+		if file.end_reached(): return throw_file_read_error("corrupt DOS header: file stops at %d"%[file.get_position()])
 		asm_chunks["_IMAGE_DOS_HEADER"]	= {
 			"e_magic": file.read("str2"),
 			"e_cblp": file.read("i16"),
@@ -254,22 +258,23 @@ func read_asm_chunks():
 			],
 			"e_lfanew": file.read("u32", "0x%08X"),
 		}
+		var PE_header_offset = asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value
 		
 		# DOS stub
+		if file.end_reached(): return throw_file_read_error("corrupt DOS stub: file stops at %d"%[file.get_position()])
 		asm_chunks["_IMAGE_DOS_STUB"] = file.read(64)
-		var PE_offset = asm_chunks["_IMAGE_DOS_HEADER"].e_lfanew.value
 		
 		# MSVC Link.exe "Rich" header
-		var msvclink_inj_size = PE_offset - file.get_position()
+		if file.end_reached(): return throw_file_read_error("corrupt file: file stops at %d"%[file.get_position()])
+		var msvclink_inj_size = PE_header_offset - file.get_position()
 		if msvclink_inj_size > 0:
-			
 			# find the "Rich" signature first
 			var link_start_offset = file.get_position()
 			var rich_offset = link_start_offset
 			while file.get_buffer(4) as Array != [0x52, 0x69, 0x63, 0x68]:
 				file.seek(file.get_position() + 4)
 				rich_offset = file.get_position()
-				if rich_offset >= PE_offset:
+				if rich_offset >= PE_header_offset:
 					rich_offset = -1
 					break # no "Rich" found?
 			
@@ -295,15 +300,16 @@ func read_asm_chunks():
 						asm_chunks["Link.exe_signature"]["key_checksum"] = key
 					else:
 						file.seek(file.get_position() + 4) # the last fields after Rich are empty
-						var remaining_size = PE_offset - file.get_position()
+						var remaining_size = PE_header_offset - file.get_position()
 						asm_chunks["Link.exe_signature"][str("empty_",remaining_size,"_bytes")] = file.read(remaining_size)
 						break
 			else:
-				file.seek(PE_offset - msvclink_inj_size)
+				file.seek(PE_header_offset - msvclink_inj_size)
 				asm_chunks["unk_Link.exe_signature"] = file.read(msvclink_inj_size)
 	
 		# PE / COFF / NT header
-		file.seek(PE_offset)
+		if file.end_reached(): return throw_file_read_error("corrupt PE headers: file stops at %d"%[file.get_position()])
+		file.seek(PE_header_offset)
 		asm_chunks["_IMAGE_NT_HEADERS"] = {
 			"Signature": file.read("str4"),
 			"FileHeader": {
@@ -319,8 +325,9 @@ func read_asm_chunks():
 		}
 		
 		# PE / COFF / NT optional header
+		var is_PE32_64 = false
 		var PE_magic_number = file.read("i16", PE_TYPE)
-		var is_PE32_64 = (PE_magic_number.value == PE_TYPE.PE32_64)
+		is_PE32_64 = (PE_magic_number.value == PE_TYPE.PE32_64)
 		asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader = {
 			"Magic": PE_magic_number,
 			"MajorLinkerVersion": file.read("i8"),
@@ -356,14 +363,14 @@ func read_asm_chunks():
 			"NumberOfRvaAndSizes": file.read("i32"),
 			"DataDirectory": {}
 		}
-		if is_PE32_64:
-			asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.erase("BaseOfData")
-		
+		if is_PE32_64: asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.erase("BaseOfData")
+	
 		# Data directories
 		for i in range(0,16):
 			asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory[DATA_DIRECTORIES.keys()[i]] = read_data_directory_section()
 		
 		# Section headers
+		if file.end_reached(): return throw_file_read_error("corrupt section headers: file stops at %d"%[file.get_position()])
 		asm_chunks["_SECTION_HEADERS"] = {}
 		PE_SECTIONS_ARRAY = []
 		for _i in range(0,asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSections.value):
@@ -387,49 +394,51 @@ func read_asm_chunks():
 		asm_chunks["_SECTIONS"] = {} # we fill this section later, but it's positioned here.
 		
 		# COFF symbol table
-		var symbols_num = asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSymbols.value
-		if symbols_num > 0:
-			coff_symbol_table_offset = asm_chunks._IMAGE_NT_HEADERS.FileHeader.PointerToSymbolTable.value
-			file.seek(coff_symbol_table_offset)
-			asm_chunks["_COFF_SYMBOLS_TABLE"] = file.read(18 * symbols_num)
-		
-			# COFF string table -- this will come right after the symbol table 99.99% of the cases..
-			if file.get_position() < file.get_len():
-				coff_string_table_offset = file.get_position()
-				var string_table_size = file.read("u32") # this value includes the 4-byte size field itself, so 4 is the minimum.
-				asm_chunks["_COFF_STRING_TABLE"] = {
-					"TableSize": string_table_size,
-					"Data": file.read(string_table_size.value - 4)
-				}
-				
-				# move to the end of the section
-				file.seek(coff_string_table_offset + string_table_size.value)
+		if !file.end_reached():
+			var symbols_num = asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSymbols.value
+			if symbols_num > 0:
+				coff_symbol_table_offset = asm_chunks._IMAGE_NT_HEADERS.FileHeader.PointerToSymbolTable.value
+				file.seek(coff_symbol_table_offset)
+				asm_chunks["_COFF_SYMBOLS_TABLE"] = file.read(18 * symbols_num)
+			
+				# COFF string table -- this will come right after the symbol table 99.99% of the cases..
+				if file.get_position() < file.get_len():
+					coff_string_table_offset = file.get_position()
+					var string_table_size = file.read("u32") # this value includes the 4-byte size field itself, so 4 is the minimum.
+					asm_chunks["_COFF_STRING_TABLE"] = {
+						"TableSize": string_table_size,
+						"Data": file.read(string_table_size.value - 4)
+					}
+					
+					# move to the end of the section
+					file.seek(coff_string_table_offset + string_table_size.value)
+				else:
+					coff_string_table_offset = -1
 			else:
-				coff_string_table_offset = -1
-		else:
-			coff_symbol_table_offset = -1
+				coff_symbol_table_offset = -1
 		
 		# Attribute certificate table
-		if valid_data_directory("SECURITY"):
-			var cert_table_offset = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY.VirtualAddress.value
-			var cert_table_size = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY.Size.value
-			asm_chunks["_ATTRIBUTE_CERTIFICATE_TABLE"] = []
-			var adv = 0
-			while adv < cert_table_size:
-				file.seek(cert_table_offset + adv)
-				var cert_entry = {
-					"dwLength": file.read("u32"),
-					"wRevision": file.read("i16", CERTIFICATE_REVISION),
-					"wCertificateType": file.read("i16", CERTIFICATE_TYPE),
-					"bCertificate": null,
-				}
-				cert_entry.bCertificate = file.read(cert_entry.dwLength.value - 8)
-				asm_chunks["_ATTRIBUTE_CERTIFICATE_TABLE"].push_back(cert_entry)
-				adv += ceil(float(cert_entry.dwLength.value) / 8.0) * 8
-			if adv != cert_table_size:
-				Log.error(null,GlobalScope.Error.ERR_FILE_CORRUPT,"corrupt certificate table: expected %d bytes, found %d" % [cert_table_size, adv])
-			else:
-				Log.generic(null,"read %d certificate entries for %d total bytes" % [asm_chunks["_ATTRIBUTE_CERTIFICATE_TABLE"].size(), cert_table_size])
+		if !file.end_reached():
+			if valid_data_directory("SECURITY"):
+				var cert_table_offset = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY.VirtualAddress.value
+				var cert_table_size = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY.Size.value
+				asm_chunks["_ATTRIBUTE_CERTIFICATE_TABLE"] = []
+				var adv = 0
+				while adv < cert_table_size:
+					file.seek(cert_table_offset + adv)
+					var cert_entry = {
+						"dwLength": file.read("u32"),
+						"wRevision": file.read("i16", CERTIFICATE_REVISION),
+						"wCertificateType": file.read("i16", CERTIFICATE_TYPE),
+						"bCertificate": null,
+					}
+					cert_entry.bCertificate = file.read(cert_entry.dwLength.value - 8)
+					asm_chunks["_ATTRIBUTE_CERTIFICATE_TABLE"].push_back(cert_entry)
+					adv += ceil(float(cert_entry.dwLength.value) / 8.0) * 8
+				if adv != cert_table_size:
+					return throw_file_read_error("corrupt certificate table: expected %d bytes, found %d" % [cert_table_size, adv])
+				else:
+					Log.generic(null,"read %d certificate entries for %d total bytes" % [asm_chunks["_ATTRIBUTE_CERTIFICATE_TABLE"].size(), cert_table_size])
 		
 		##### DATA DIRECTORIES
 		
@@ -443,94 +452,108 @@ func read_asm_chunks():
 		if idata_table_offset != -1:
 			file.seek(idata_table_offset)
 			idata_table_entries = []
-			while true: # import directory table
-				var entry = {
-					"VirtualAddress": file.read("rva32"),
+			# import directory table
+			while true:
+				var chunk = {
+					"OriginalFirstThunk": file.read("rva32"), # aka the RVA to the ImportLookupTable
 					"TimeDateStamp": file.read("u32"),
 					"ForwarderChain": file.read("u32"),
-					"NameAddress": file.read("rva32"),
-					"ImportAddressTableThunk": file.read("rva32")
+					"Name1": file.read("rva32"), # aka the RVA to the ASCII name of the DLL
+					"FirstThunk": file.read("rva32") # RVA to ImportAddressTable thunk if the import is bound, or a copy of OriginalFirstThunk
 				}
-				idata_table_entries.push_back(entry)
-				if entry.VirtualAddress.value == 0: # last entry reached
+				idata_table_entries.push_back(chunk)
+				if chunk.OriginalFirstThunk.value == 0: # last entry reached
 					break
-		
+			# import lookup tables
+			ilt_tables = []
+			for chunk in idata_table_entries:
+				var entry_ilt_data = []
+				var ilt_offset = RVA_to_file_offset(chunk.OriginalFirstThunk.value)
+				if ilt_offset != null:
+					file.seek(ilt_offset)
+					while true:
+						var thunk = read_thunk_data(is_PE32_64)
+						entry_ilt_data.push_back(thunk)
+						if thunk.value.count(0) == 8 if is_PE32_64 else 4: # last entry reached
+							break
+				ilt_tables.push_back(entry_ilt_data)
+			
+			
 		
 		# IAT
 		iat_offset = data_dir_offset("IAT")
 		
-		
-		
-		
-		
-		#####
-		
 		# Fill in the actual section data
-		for i in asm_chunks["_SECTION_HEADERS"].size():
-			var section_name = asm_chunks["_SECTION_HEADERS"].keys()[i]
-			var section_info = asm_chunks["_SECTION_HEADERS"][section_name]
-			var size = section_info.SizeOfRawData.value
-			if size < 1:
-				continue
-			
-			# determine if some data directory table has been found inside this section
-			var mapped_subsections = []
-			var section_start = section_info.PointerToRawData.value
-			for dir_name in asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory:
-				if dir_name == "SECURITY":
-					continue # this does not map to a PE section
-				if data_dir_section(dir_name) == section_info:
-					if dir_name == "DEBUG":
-						pass
-					var dir_offset = data_dir_offset(dir_name)
-					if dir_offset == idata_table_offset:
-						pass
-					mapped_subsections.push_back({
-						"offset": dir_offset,
-						"size": asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory[dir_name].Size.value,
-						"name": dir_name
-					})
-			mapped_subsections.sort_custom(self, "sort_by_offset")
-			
-			# go through the found mapped subsections (if any) and read the file chunks accordingly, spacing out
-			# with any unmapped data in between if necessary
-			var chunk = {}
-			file.seek(section_start)
-			if mapped_subsections.size() == 0:
-				chunk = file.read(size)
-			else:
-				var last_mapped_offset = section_start
-				for s in range(0, mapped_subsections.size()):
-					
-					# unmapped bytes since the last mapped chunk
-					var unammped_bytes = mapped_subsections[s].offset - last_mapped_offset
-					if unammped_bytes > 0:
-						chunk[str("unmapped",file.get_position())] = file.read(unammped_bytes)
-						last_mapped_offset += unammped_bytes
-					
-					# mapped chunk
-					match mapped_subsections[s].name:
-						"IMPORT":
-							chunk[mapped_subsections[s].name] = idata_table_entries
-						"DEBUG":
-							chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
-						_:
-							chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
-					
-					# advance pointer
-					last_mapped_offset = mapped_subsections[s].offset + mapped_subsections[s].size
-				
-				# append any unmapped leftover bytes if present
-				var bytes_left = (section_start + size) - file.get_position()
-				if bytes_left > 0:
-					chunk[str("unmapped",file.get_position())] = file.read(bytes_left)
-			
-			# update section name from COFF string format when needed
-			if section_name.begins_with("/"):
-				section_name = get_coff_string(section_name.to_int())
-			asm_chunks["_SECTIONS"][section_name] = chunk
+		chunk_read_sections_data()
 		
 		return true
+
+func chunk_read_sections_data():
+	for i in asm_chunks["_SECTION_HEADERS"].size():
+		var section_name = asm_chunks["_SECTION_HEADERS"].keys()[i]
+		var section_info = asm_chunks["_SECTION_HEADERS"][section_name]
+		var size = section_info.SizeOfRawData.value
+		if size < 1:
+			continue
+		
+		# determine if some data directory table has been found inside this section
+		var mapped_subsections = []
+		var section_start = section_info.PointerToRawData.value
+		for dir_name in asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory:
+			if dir_name == "SECURITY":
+				continue # this does not map to a PE section
+			if data_dir_section(dir_name) == section_info:
+				if dir_name == "IAT":
+					pass
+				mapped_subsections.push_back({
+					"offset": data_dir_offset(dir_name),
+					"size": asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory[dir_name].Size.value,
+					"name": dir_name
+				})
+		mapped_subsections.sort_custom(self, "sort_by_offset")
+		
+		# go through the found mapped subsections (if any) and read the file chunks accordingly, spacing out
+		# with any unmapped data in between if necessary
+		var chunk = {}
+		file.seek(section_start)
+		if mapped_subsections.size() == 0:
+			chunk = file.read(size)
+		else:
+			var last_mapped_offset = section_start
+			for s in range(0, mapped_subsections.size()):
+				
+				
+				# unmapped bytes since the last mapped chunk
+				file.seek(last_mapped_offset)
+				var unammped_bytes = mapped_subsections[s].offset - last_mapped_offset
+				if unammped_bytes > 0:
+					chunk[str("unmapped",file.get_position())] = file.read(unammped_bytes)
+					last_mapped_offset += unammped_bytes
+				assert(last_mapped_offset == file.get_position())
+				assert(last_mapped_offset == mapped_subsections[s].offset)
+				
+				# mapped chunk
+				match mapped_subsections[s].name:
+					"IMPORT":
+						chunk[mapped_subsections[s].name] = idata_table_entries
+						file.seek(file.get_position() + mapped_subsections[s].size)
+					"IAT":
+						chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
+					_:
+						chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
+				
+				# advance pointer
+				last_mapped_offset = mapped_subsections[s].offset + mapped_subsections[s].size
+			
+			# append any unmapped leftover bytes if present
+			var bytes_left = (section_start + size) - file.get_position()
+			if bytes_left > 0:
+				chunk[str("unmapped",file.get_position())] = file.read(bytes_left)
+		
+		# update section name from COFF string format when needed
+		if section_name.begins_with("/"):
+			section_name = get_coff_string(section_name.to_int())
+		asm_chunks["_SECTIONS"][section_name] = chunk
 		
 ## DATA DIRECTORIES & RVA
 var PE_SECTIONS_ARRAY = []
@@ -552,8 +575,8 @@ func RVA_to_file_offset(rva):
 	var section = RVA_to_section(rva)
 	if section == null:
 		return null
-	var rva_offset = rva - section.VirtualAddress.value
-	var raw_address = section.PointerToRawData.value + rva_offset
+	var offset_in_section = rva - section.VirtualAddress.value
+	var raw_address = section.PointerToRawData.value + offset_in_section
 	return raw_address
 func valid_data_directory(dir_name):
 	var chunk = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name]
@@ -572,6 +595,15 @@ func sort_by_offset(a, b):
 	if a.offset < b.offset:
 		return true
 	return false
+
+## IAT / ILT thunks
+func read_thunk_data(is_PE32_64):
+	var data = null
+	if !is_PE32_64:
+		data = file.read(4)
+	else:
+		data = file.read(8)
+	return data
 
 ## COFF Symbol Table
 var coff_symbol_table_offset = -1
@@ -609,13 +641,40 @@ func get_coff_string(offset):
 ## .edata
 var edata_table_offset = -1
 
-## .idata
+## Imports / IAT
+var iat_offset = -1
 var idata_table_offset = -1
 var idata_table_entries = []
-
-## IAT
-var iat_offset = -1
-
+var ilt_tables = []
+var iat_tables = []
+func get_import_thunk_raw(import_id, thunk_id, ilt_or_iat):
+	if import_id < 0 || import_id >= idata_table_entries.size() - 1:
+		return null
+	var import_thunks_array = ilt_tables[import_id] if ilt_or_iat else iat_tables[import_id]
+	if thunk_id < 0 || thunk_id >= import_thunks_array.size() - 1:
+		return null
+	var thunk = import_thunks_array[thunk_id]
+	return thunk
+func get_import_thunk(import_id, thunk_id, ilt_or_iat):
+	var thunk = get_import_thunk_raw(import_id, thunk_id, ilt_or_iat)
+	if thunk != null:
+		var thunk_data = {
+			"is_ordinal": false,
+			"ordinal": null,
+			"rva": null,
+			"hint": null,
+			"fn_name": null
+		}
+		thunk_data.is_ordinal = thunk.value[thunk.value.size()-1] & 0x80
+		if thunk_data.is_ordinal:
+			thunk_data.ordinal = DataStruct.convert_bytes_to_type(thunk.value, "u16")
+		else:
+			thunk_data.rva = DataStruct.convert_bytes_to_type(thunk.value, "u32")
+			var offset = RVA_to_file_offset(thunk_data.rva)
+			thunk_data.hint = file.read("u16").value
+			thunk_data.fn_name = file.get_null_terminated_string(offset + 2)
+		return thunk_data
+	return null
 
 # Dictionary of common PE file sections and descriptions. 
 # Taken from here: http://www.hexacorn.com/blog/2016/12/15/pe-section-names-re-visited/

@@ -60,7 +60,7 @@ func xor_decrypt(bytes, key, type):
 	return convert_bytes_to_type(buffer, type)
 
 onready var stream = StreamPeerBuffer.new()
-func convert_bytes_to_type(bytes, type):
+func convert_bytes_to_type(bytes : PoolByteArray, type):
 	stream.data_array = bytes
 	stream.seek(0)
 	match type:

@@ -448,10 +448,10 @@ func read_asm_chunks():
 			file.seek(edata_table_offset)
 		
 		# .idata
-		idata_table_offset = data_dir_offset("IMPORT")
-		if idata_table_offset != -1:
-			file.seek(idata_table_offset)
-			idata_table_entries = []
+		IMPORT_TABLES.IMPORT.offset = data_dir_offset("IMPORT")
+		if IMPORT_TABLES.IMPORT.offset != -1:
+			file.seek(IMPORT_TABLES.IMPORT.offset)
+			IMPORT_TABLES.IMPORT.raw_chunks = []
 			# import directory table
 			while true:
 				var chunk = {
@@ -461,27 +461,18 @@ func read_asm_chunks():
 					"Name1": file.read("rva32"), # aka the RVA to the ASCII name of the DLL
 					"FirstThunk": file.read("rva32") # RVA to ImportAddressTable thunk if the import is bound, or a copy of OriginalFirstThunk
 				}
-				idata_table_entries.push_back(chunk)
-				if chunk.OriginalFirstThunk.value == 0: # last entry reached
+				IMPORT_TABLES.IMPORT.raw_chunks.push_back(chunk)
+				if chunk.OriginalFirstThunk.value == 0: # last entry reached?
 					break
-			# import lookup tables
-			ilt_tables = []
-			for chunk in idata_table_entries:
-				var entry_ilt_data = []
-				var ilt_offset = RVA_to_file_offset(chunk.OriginalFirstThunk.value)
-				if ilt_offset != null:
-					file.seek(ilt_offset)
-					while true:
-						var thunk = read_thunk_data(is_PE32_64)
-						entry_ilt_data.push_back(thunk)
-						if thunk.value.count(0) == 8 if is_PE32_64 else 4: # last entry reached
-							break
-				ilt_tables.push_back(entry_ilt_data)
 			
+			# Import Lookup Tables
+			IMPORT_TABLES.ILT = fill_thunk_table("OriginalFirstThunk")
 			
+			# Import Address Tables
+			IMPORT_TABLES.IAT = fill_thunk_table("FirstThunk")
 		
 		# IAT
-		iat_offset = data_dir_offset("IAT")
+#		iat_offset = data_dir_offset("IAT")
 		
 		# Fill in the actual section data
 		chunk_read_sections_data()
@@ -503,8 +494,6 @@ func chunk_read_sections_data():
 			if dir_name == "SECURITY":
 				continue # this does not map to a PE section
 			if data_dir_section(dir_name) == section_info:
-				if dir_name == "IAT":
-					pass
 				mapped_subsections.push_back({
 					"offset": data_dir_offset(dir_name),
 					"size": asm_chunks["_IMAGE_NT_HEADERS"].OptionalHeader.DataDirectory[dir_name].Size.value,
@@ -535,10 +524,12 @@ func chunk_read_sections_data():
 				# mapped chunk
 				match mapped_subsections[s].name:
 					"IMPORT":
-						chunk[mapped_subsections[s].name] = idata_table_entries
+						chunk[mapped_subsections[s].name] = IMPORT_TABLES.IMPORT.raw_chunks
 						file.seek(file.get_position() + mapped_subsections[s].size)
 					"IAT":
-						chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
+#						chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
+						chunk[mapped_subsections[s].name] = IMPORT_TABLES.IAT.raw_chunks
+						file.seek(file.get_position() + mapped_subsections[s].size)
 					_:
 						chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
 				
@@ -554,6 +545,8 @@ func chunk_read_sections_data():
 		if section_name.begins_with("/"):
 			section_name = get_coff_string(section_name.to_int())
 		asm_chunks["_SECTIONS"][section_name] = chunk
+func is_PE32_64():
+	return asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.Magic.value == PE_TYPE.PE32_64
 		
 ## DATA DIRECTORIES & RVA
 var PE_SECTIONS_ARRAY = []
@@ -592,18 +585,15 @@ func data_dir_section(dir_name):
 		return null
 	return RVA_to_section(asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name].VirtualAddress.value)
 func sort_by_offset(a, b):
-	if a.offset < b.offset:
-		return true
+	if a is Dictionary:
+		if a.offset < b.offset:
+			return true
+	elif a is Array:
+		if a.size() == 0:
+			return false
+		if b.size() == 0 || a[0].offset < b[0].offset:
+			return true
 	return false
-
-## IAT / ILT thunks
-func read_thunk_data(is_PE32_64):
-	var data = null
-	if !is_PE32_64:
-		data = file.read(4)
-	else:
-		data = file.read(8)
-	return data
 
 ## COFF Symbol Table
 var coff_symbol_table_offset = -1
@@ -641,22 +631,76 @@ func get_coff_string(offset):
 ## .edata
 var edata_table_offset = -1
 
-## Imports / IAT
+## Imports / IAT / ILT / function thunks
 var iat_offset = -1
-var idata_table_offset = -1
-var idata_table_entries = []
-var ilt_tables = []
-var iat_tables = []
-func get_import_thunk_raw(import_id, thunk_id, ilt_or_iat):
-	if import_id < 0 || import_id >= idata_table_entries.size() - 1:
-		return null
-	var import_thunks_array = ilt_tables[import_id] if ilt_or_iat else iat_tables[import_id]
-	if thunk_id < 0 || thunk_id >= import_thunks_array.size() - 1:
-		return null
-	var thunk = import_thunks_array[thunk_id]
-	return thunk
-func get_import_thunk(import_id, thunk_id, ilt_or_iat):
-	var thunk = get_import_thunk_raw(import_id, thunk_id, ilt_or_iat)
+var IMPORT_TABLES = {
+	"IMPORT": {
+		"offset": -1,
+		"raw_chunks": []
+	},
+	"ILT": {},
+	"IAT": {}
+}
+func read_thunk_chunk(is_PE32_64): # TODO: move the content parsing here!
+	var data = null
+	if !is_PE32_64:
+		data = file.read(4)
+	else:
+		data = file.read(8)
+	return data
+func fill_thunk_table(memberRvaName : String):
+	# clear table data and refill
+	var is_64 = is_PE32_64()
+	var raw_chunks = []
+	for c in range(0, IMPORT_TABLES.IMPORT.raw_chunks.size() - 1): # the last one is empty.
+		var chunk = IMPORT_TABLES.IMPORT.raw_chunks[c]
+		var thunks = []
+		var offset = RVA_to_file_offset(chunk[memberRvaName].value)
+		if offset != null:
+			file.seek(offset)
+			while true:
+				
+				# read thunk
+				var thunk = read_thunk_chunk(is_64)
+				thunks.push_back(thunk)
+				
+				# last entry reached?
+				if thunk.value.count(0) == (8 if is_64 else 4):
+					break
+		raw_chunks.push_back(thunks)
+	
+	
+	# reorder chunks by memory layout (by first member offset)
+	var original_offset_order = []
+	for e in range(0, raw_chunks.size()):
+		original_offset_order.push_back(raw_chunks[e][0].offset)
+	
+	# sorted table	
+	raw_chunks.sort_custom(self, "sort_by_offset")
+	
+	assert(raw_chunks.size() == original_offset_order.size())
+	
+	# record lookup array
+	var index_table = {}
+	for o in range(0, original_offset_order.size()): # o: original index (lookup KEY)
+		for i in range(0, raw_chunks.size()): # i: deferred/ordered table index (lookup VALUE)
+			if raw_chunks[i][0].offset == original_offset_order[o]:
+				index_table[o] = i
+	
+	# return combined dictionary
+	return {
+		"raw_chunks": raw_chunks,
+		"memory_ordered_import_lookup": index_table
+	}
+func get_import_thunks_by_raw_index(table_name, import_id):
+	var memory_ordered_import_id_by_table_name = IMPORT_TABLES[table_name].memory_ordered_import_lookup[import_id]
+	var thunks = IMPORT_TABLES[table_name].raw_chunks[memory_ordered_import_id_by_table_name]
+	return thunks
+func get_import_thunk(table_name, import_id, thunk_id, raw): # this does NOT check if the ids are within bounds.
+	var thunks = get_import_thunks_by_raw_index(table_name, import_id)
+	var thunk = thunks[thunk_id]
+	if raw:
+		return thunk
 	if thunk != null:
 		var thunk_data = {
 			"is_ordinal": false,

@@ -21,6 +21,14 @@ func value_as_ascii(v, escape = false, only_ascii = true):
 				return ""
 		else:
 			return c
+func bin_string(bytes : PoolByteArray):
+	var ret_str = ""
+	for b in bytes:
+		var n = int(b)
+		for _i in range(0,8):
+			ret_str = String(n&1) + ret_str
+			n = n>>1
+	return ret_str
 
 # settings, configs, caches etc.
 const USER_PATH_RECENTFILES = "user://recent_files.var"
@@ -217,6 +225,7 @@ func _on_ChunkTable_item_activated():
 # imports / exports / data directories / etc. tables
 onready var EXPORTS_TABLE = $VSplitContainer/Main/TabContainer/Exports
 onready var IMPORTS_TABLE = $VSplitContainer/Main/TabContainer/Imports
+onready var BUTTON_IAT_MODE = $VSplitContainer/Main/TabContainer/Imports/IATMode
 func fill_ImportExportEtcTables():
 	# imports
 	IMPORTS_TABLE.clear()
@@ -229,28 +238,30 @@ func fill_ImportExportEtcTables():
 			var parent_item = null
 			if !dll_names_tree_items.has(dll_name):
 				parent_item = IMPORTS_TABLE.create_item()
-				parent_item.collapsed = true
+#				parent_item.collapsed = true
 				dll_names_tree_items[dll_name] = parent_item
 			else:
 				parent_item = dll_names_tree_items[dll_name]
 			
 			var num_imports_in_parent = 0
+			var table_name = "IAT" if BUTTON_IAT_MODE.pressed else "ILT"
 			for thunk_fn_name in PE.IMPORT_TABLES.ILT.formatted[dll_name]:
-				var formatted = PE.get_import_thunk("ILT", dll_name, thunk_fn_name, true)
+				var raw = PE.get_import_thunk(table_name, dll_name, thunk_fn_name, false)
+				var formatted = PE.get_import_thunk(table_name, dll_name, thunk_fn_name, true)
 				var item = IMPORTS_TABLE.create_item(parent_item)
-				item.set_text(0, "%s : %s" % (["ord", formatted.ordinal] if formatted.is_ordinal else ["rva", formatted.fn_name]))
+				IMPORTS_TABLE.set_column_min_width(0, 4)
+				IMPORTS_TABLE.set_column_min_width(1, 1)
+				if formatted.is_ordinal:
+					item.set_custom_color(0, Color(0.8,0.8,0))
+					item.set_text(0, str(formatted.ordinal))
+				else:
+					item.set_text(0, str(formatted.fn_name))
 				num_imports_in_parent += 1
 			
-			parent_item.set_text(0,"%s (%d)" % [dll_name, num_imports_in_parent])
-func bin_string(bytes : PoolByteArray):
-	var ret_str = ""
-	for b in bytes:
-		var n = int(b)
-		for _i in range(0,8):
-			ret_str = String(n&1) + ret_str
-			n = n>>1
-	return ret_str
-	
+			parent_item.set_text(0,"%s (%d)" % [dll_name, num_imports_in_parent])	
+func _on_IATMode_toggled(button_pressed):
+	fill_ImportExportEtcTables()
+
 
 ##### CODING / MAIN PANELS
 var middle_height = 0
@@ -687,3 +698,4 @@ func _on_BtnAddr_pressed():
 	$GoToDialog/LineEdit.grab_focus()
 	$GoToDialog/LineEdit.select(2,-1)
 	$GoToDialog/LineEdit.caret_position = 999999
+

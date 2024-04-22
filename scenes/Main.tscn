@@ -323,6 +323,20 @@ custom_constants/vseparation = -1
 custom_fonts/font = ExtResource( 4 )
 hide_root = true
 
+[node name="IATMode" type="CheckButton" parent="VSplitContainer/Main/TabContainer/Imports"]
+visible = false
+anchor_left = 1.0
+anchor_right = 1.0
+margin_left = -136.0
+margin_top = -6.0
+margin_right = -3.0
+margin_bottom = 34.0
+grow_horizontal = 0
+focus_mode = 0
+pressed = true
+text = "ILT / IAT"
+align = 2
+
 [node name="Exports" type="Tree" parent="VSplitContainer/Main/TabContainer"]
 visible = false
 anchor_right = 1.0
@@ -743,6 +757,7 @@ caret_blink = true
 [connection signal="item_activated" from="VSplitContainer/Main/Middle/Chunks/List" to="." method="_on_ChunkTable_item_activated"]
 [connection signal="scrolled" from="VSplitContainer/Main/Middle/Code/Asm/VSlider" to="." method="_on_VSlider_asm_scrolled"]
 [connection signal="value_changed" from="VSplitContainer/Main/Middle/Code/Asm/VSlider" to="VSplitContainer/Main/Middle/Code/Asm/VSlider" method="_on_VSlider_value_changed"]
+[connection signal="toggled" from="VSplitContainer/Main/TabContainer/Imports/IATMode" to="." method="_on_IATMode_toggled"]
 [connection signal="scrolling" from="VSplitContainer/Footer/Console/VScrollBar" to="VSplitContainer/Footer/Console/Terminal" method="_on_VScrollBar_scrolling"]
 [connection signal="text_entered" from="VSplitContainer/Footer/Console/Input" to="." method="_on_Input_text_entered"]
 [connection signal="pressed" from="VSplitContainer/Footer/LogPrinter/BtnClearLog" to="." method="_on_BtnClearLog_pressed"]

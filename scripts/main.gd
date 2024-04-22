@@ -223,22 +223,22 @@ func fill_ImportExportEtcTables():
 	IMPORTS_TABLE.create_item()
 	if PE.IMPORT_TABLES.IMPORT.offset != -1 && PE.IMPORT_TABLES.IMPORT.raw_chunks.size() != 0:
 		var dll_names_tree_items = {}
-		for e in range(0, PE.IMPORT_TABLES.IMPORT.raw_chunks.size() - 1):
-			var entry = PE.IMPORT_TABLES.IMPORT.raw_chunks[e]
-			var dll_name_address = PE.RVA_to_file_offset(entry.Name1.value)
-			var dll_name = PE.file.get_null_terminated_string(dll_name_address)
+		for dll_name in PE.IMPORT_TABLES.IMPORT.raw_chunks:
+			if dll_name == "__empty_end": # the last one is empty.
+				continue
 			var parent_item = null
 			if !dll_names_tree_items.has(dll_name):
 				parent_item = IMPORTS_TABLE.create_item()
-#				parent_item.collapsed = true
+				parent_item.collapsed = true
 				dll_names_tree_items[dll_name] = parent_item
 			else:
 				parent_item = dll_names_tree_items[dll_name]
 			
 			var num_imports_in_parent = 0
-			var entries_array = PE.get_import_thunks_by_raw_index("ILT", e)
-			for l in range(0, entries_array.size() - 1):
-				add_import_lookup_table_entry(parent_item, PE.get_import_thunk("ILT", e, l, false))
+			for thunk_fn_name in PE.IMPORT_TABLES.ILT.formatted[dll_name]:
+				var formatted = PE.get_import_thunk("ILT", dll_name, thunk_fn_name, true)
+				var item = IMPORTS_TABLE.create_item(parent_item)
+				item.set_text(0, "%s : %s" % (["ord", formatted.ordinal] if formatted.is_ordinal else ["rva", formatted.fn_name]))
 				num_imports_in_parent += 1
 			
 			parent_item.set_text(0,"%s (%d)" % [dll_name, num_imports_in_parent])
@@ -250,10 +250,6 @@ func bin_string(bytes : PoolByteArray):
 			ret_str = String(n&1) + ret_str
 			n = n>>1
 	return ret_str
-func add_import_lookup_table_entry(parent_item, thunk_data):
-	var item = IMPORTS_TABLE.create_item(parent_item)
-#	var thunk_data = PE.get_import_thunk(e, l, true)
-	item.set_text(0, "%s : %s" % (["ord", thunk_data.ordinal] if thunk_data.is_ordinal else ["rva", thunk_data.fn_name]))
 	
 
 ##### CODING / MAIN PANELS

@@ -450,10 +450,11 @@ func read_asm_chunks():
 		# .idata
 		IMPORT_TABLES.IMPORT.offset = data_dir_offset("IMPORT")
 		if IMPORT_TABLES.IMPORT.offset != -1:
-			file.seek(IMPORT_TABLES.IMPORT.offset)
-			IMPORT_TABLES.IMPORT.raw_chunks = []
 			# import directory table
+			IMPORT_TABLES.IMPORT.raw_chunks = {}
+			var next_offset = IMPORT_TABLES.IMPORT.offset
 			while true:
+				file.seek(next_offset)
 				var chunk = {
 					"OriginalFirstThunk": file.read("rva32"), # aka the RVA to the ImportLookupTable
 					"TimeDateStamp": file.read("u32"),
@@ -461,9 +462,14 @@ func read_asm_chunks():
 					"Name1": file.read("rva32"), # aka the RVA to the ASCII name of the DLL
 					"FirstThunk": file.read("rva32") # RVA to ImportAddressTable thunk if the import is bound, or a copy of OriginalFirstThunk
 				}
-				IMPORT_TABLES.IMPORT.raw_chunks.push_back(chunk)
+				next_offset = file.get_position()
 				if chunk.OriginalFirstThunk.value == 0: # last entry reached?
+					IMPORT_TABLES.IMPORT.raw_chunks["__empty_end"] = chunk
 					break
+				else:
+					var name_rva = RVA_to_file_offset(chunk.Name1.value)
+					var import_name = file.get_null_terminated_string(name_rva)
+					IMPORT_TABLES.IMPORT.raw_chunks[import_name] = chunk
 			
 			# Import Lookup Tables
 			IMPORT_TABLES.ILT = fill_thunk_table("OriginalFirstThunk")
@@ -636,7 +642,7 @@ var iat_offset = -1
 var IMPORT_TABLES = {
 	"IMPORT": {
 		"offset": -1,
-		"raw_chunks": []
+		"raw_chunks": {}
 	},
 	"ILT": {},
 	"IAT": {}
@@ -648,60 +654,11 @@ func read_thunk_chunk(is_PE32_64): # TODO: move the content parsing here!
 	else:
 		data = file.read(8)
 	return data
-func fill_thunk_table(memberRvaName : String):
-	# clear table data and refill
-	var is_64 = is_PE32_64()
-	var raw_chunks = []
-	for c in range(0, IMPORT_TABLES.IMPORT.raw_chunks.size() - 1): # the last one is empty.
-		var chunk = IMPORT_TABLES.IMPORT.raw_chunks[c]
-		var thunks = []
-		var offset = RVA_to_file_offset(chunk[memberRvaName].value)
-		if offset != null:
-			file.seek(offset)
-			while true:
-				
-				# read thunk
-				var thunk = read_thunk_chunk(is_64)
-				thunks.push_back(thunk)
-				
-				# last entry reached?
-				if thunk.value.count(0) == (8 if is_64 else 4):
-					break
-		raw_chunks.push_back(thunks)
-	
-	
-	# reorder chunks by memory layout (by first member offset)
-	var original_offset_order = []
-	for e in range(0, raw_chunks.size()):
-		original_offset_order.push_back(raw_chunks[e][0].offset)
-	
-	# sorted table	
-	raw_chunks.sort_custom(self, "sort_by_offset")
-	
-	assert(raw_chunks.size() == original_offset_order.size())
-	
-	# record lookup array
-	var index_table = {}
-	for o in range(0, original_offset_order.size()): # o: original index (lookup KEY)
-		for i in range(0, raw_chunks.size()): # i: deferred/ordered table index (lookup VALUE)
-			if raw_chunks[i][0].offset == original_offset_order[o]:
-				index_table[o] = i
-	
-	# return combined dictionary
-	return {
-		"raw_chunks": raw_chunks,
-		"memory_ordered_import_lookup": index_table
-	}
-func get_import_thunks_by_raw_index(table_name, import_id):
-	var memory_ordered_import_id_by_table_name = IMPORT_TABLES[table_name].memory_ordered_import_lookup[import_id]
-	var thunks = IMPORT_TABLES[table_name].raw_chunks[memory_ordered_import_id_by_table_name]
-	return thunks
-func get_import_thunk(table_name, import_id, thunk_id, raw): # this does NOT check if the ids are within bounds.
-	var thunks = get_import_thunks_by_raw_index(table_name, import_id)
-	var thunk = thunks[thunk_id]
-	if raw:
-		return thunk
-	if thunk != null:
+func get_thunk_formatted_data(thunk_raw):
+	if thunk_raw != null:
+#		file.seek(offset); var is_ordinal = file.read("u8", "bool"); is_ordinal.value = is_ordinal.value & 0x80
+#		file.seek(offset); var ordinal = file.read("u16")
+#		file.seek(offset); var rva = file.read("u32"); rva.value = rva.value & ~0x80000000
 		var thunk_data = {
 			"is_ordinal": false,
 			"ordinal": null,
@@ -709,16 +666,79 @@ func get_import_thunk(table_name, import_id, thunk_id, raw): # this does NOT che
 			"hint": null,
 			"fn_name": null
 		}
-		thunk_data.is_ordinal = thunk.value[thunk.value.size()-1] & 0x80
+		thunk_data.is_ordinal = thunk_raw.value[thunk_raw.value.size()-1] & 0x80
 		if thunk_data.is_ordinal:
-			thunk_data.ordinal = DataStruct.convert_bytes_to_type(thunk.value, "u16")
+			thunk_data.ordinal = DataStruct.convert_bytes_to_type(thunk_raw.value, "u16")
 		else:
-			thunk_data.rva = DataStruct.convert_bytes_to_type(thunk.value, "u32")
+			thunk_data.rva = DataStruct.convert_bytes_to_type(thunk_raw.value, "u32") & ~0x80000000
 			var offset = RVA_to_file_offset(thunk_data.rva)
+			file.seek(offset)
 			thunk_data.hint = file.read("u16").value
 			thunk_data.fn_name = file.get_null_terminated_string(offset + 2)
 		return thunk_data
 	return null
+func fill_thunk_table(memberRvaName : String):
+	# clear table data and refill
+	var is_64 = is_PE32_64()
+	var _raw_chunks = {}
+	var _formatted = {}
+	
+	# construct table
+	var _sorted_imports = []
+	for import_name in IMPORT_TABLES.IMPORT.raw_chunks.keys():
+		if import_name == "__empty_end": # the last one is empty.
+			continue
+		var chunk = IMPORT_TABLES.IMPORT.raw_chunks[import_name]
+		var thunks = {}
+		var offset = RVA_to_file_offset(chunk[memberRvaName].value)
+		_raw_chunks[import_name] = {}
+		_formatted[import_name] = {}
+		if offset != null:
+			var next_offset = offset
+			while true:
+				
+				# read thunk
+				file.seek(next_offset)
+				var thunk_raw = read_thunk_chunk(is_64)
+				next_offset = file.get_position()
+				
+				# last entry reached?
+				if thunk_raw.value.count(0) == (8 if is_64 else 4):
+					break
+				else:
+					# add thunk data to structured tables
+					var thunk_formatted = get_thunk_formatted_data(thunk_raw)
+					_raw_chunks[import_name][thunk_formatted.fn_name] = thunk_raw
+					_formatted[import_name][thunk_formatted.fn_name] = thunk_formatted
+		
+		# record highest memory offset of each import's thunks data
+		if _raw_chunks[import_name].size() != 0:
+			var keys = _raw_chunks[import_name].keys()
+			var first_thunk_offset = _raw_chunks[import_name][keys[0]].offset
+			_sorted_imports.push_back({
+				"name": import_name,
+				"offset": first_thunk_offset
+			})
+	
+	# sorted import names by their thunks memory layout
+	_sorted_imports.sort_custom(self, "sort_by_offset")
+	assert(IMPORT_TABLES.IMPORT.raw_chunks.size() == _sorted_imports.size() + 1) # IMPORT_TABLES.IMPORT contains one extra __empty_end
+	
+	# reorder the thunk tables...
+	var final_table = {
+		"raw_chunks": {},
+		"formatted": {}
+	}
+	for _import in _sorted_imports:
+		var import_name = _import.name
+		final_table.raw_chunks[import_name] = _raw_chunks[import_name]
+		final_table.formatted[import_name] = _formatted[import_name]
+	return final_table
+func get_import_thunk(table_name, import_id, thunk_id, formatted): # this does NOT check if the ids are within bounds.
+	if formatted:
+		return IMPORT_TABLES[table_name].formatted[import_id][thunk_id]
+	else:
+		return IMPORT_TABLES[table_name].raw_chunks[import_id][thunk_id]
 
 # Dictionary of common PE file sections and descriptions. 
 # Taken from here: http://www.hexacorn.com/blog/2016/12/15/pe-section-names-re-visited/

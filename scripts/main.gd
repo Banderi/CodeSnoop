@@ -138,8 +138,6 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 			table_item.set_custom_color(0, Color(1,1,1,0.3))
 		elif itemname.begins_with("unused"):
 			table_item.set_custom_color(0, Color(1,0.7,0.7,0.5))
-		if itemname == "_SECTIONS":
-			table_item.collapsed = false
 	
 	# determine the object size, recursively going through the childs if necessary
 	var total_bytes = 0
@@ -181,6 +179,15 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 	# name text, data obj (reference), total obj size in bytes
 	if table_item != null:
 		table_item.set_metadata(0, [itemname,item,total_bytes])
+	
+	# uncollapse _SECTIONS chunks in the table by default
+	if itemname == "_SECTIONS":
+		table_item.collapsed = false
+#		var child = table_item.get_children()
+#		while child != null:
+#			child.collapsed = false
+#			child = child.get_next()
+	
 	return total_bytes
 func _on_ChunkTable_cell_selected():
 	var selection = CHUNKS_LIST.get_selected()
@@ -246,11 +253,11 @@ func fill_ImportExportEtcTables():
 			var num_imports_in_parent = 0
 			var table_name = "IAT" if BUTTON_IAT_MODE.pressed else "ILT"
 			for thunk_fn_name in PE.IMPORT_TABLES.ILT.formatted[dll_name]:
-				var raw = PE.get_import_thunk(table_name, dll_name, thunk_fn_name, false)
+#				var raw = PE.get_import_thunk(table_name, dll_name, thunk_fn_name, false)
 				var formatted = PE.get_import_thunk(table_name, dll_name, thunk_fn_name, true)
 				var item = IMPORTS_TABLE.create_item(parent_item)
 				IMPORTS_TABLE.set_column_min_width(0, 4)
-				IMPORTS_TABLE.set_column_min_width(1, 1)
+#				IMPORTS_TABLE.set_column_min_width(1, 1)
 				if formatted.is_ordinal:
 					item.set_custom_color(0, Color(0.8,0.8,0))
 					item.set_text(0, str(formatted.ordinal))
@@ -259,7 +266,7 @@ func fill_ImportExportEtcTables():
 				num_imports_in_parent += 1
 			
 			parent_item.set_text(0,"%s (%d)" % [dll_name, num_imports_in_parent])	
-func _on_IATMode_toggled(button_pressed):
+func _on_IATMode_toggled(_button_pressed):
 	fill_ImportExportEtcTables()
 
 
@@ -510,8 +517,8 @@ func _on_AsciiMode_toggled(button_pressed):
 	update_hex_scrollbar_size()
 
 # asm / disassembler
-onready var ASM = $VSplitContainer/Main/Middle/Code/Asm
-onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/Asm/VSlider
+onready var ASM = $VSplitContainer/Main/Middle/Code/Disassembler
+onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/Disassembler/VSlider
 func update_asm_scrollbar_size():
 	if PE.file != null:
 		pass

@@ -8,8 +8,7 @@ func u_to_i(unsigned, bs):
 
 func get_null_terminated_string(offset):
 	seek(offset)
-	var null_byte = str(0x00)
-	var csv = get_csv_line(null_byte)
+	var csv = get_csv_line("\u0000")
 	return csv[0]
 
 func end_reached():

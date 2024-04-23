@@ -94,9 +94,17 @@ func as_text(item, with_value = null):
 			"UTF-8":
 				return (with_value as PoolByteArray).get_string_from_utf8()
 			"bytes":
-				if with_value.size() <= 4:
-					return "%02X %02X %02X %02X" % [with_value[0], with_value[1], with_value[2], with_value[3]]
-				return "%02X %02X %02X..." % [with_value[0], with_value[1], with_value[2]]
+				match with_value.size():
+					1:
+						return "%02X" % [with_value[0]]
+					2:
+						return "%02X %02X" % [with_value[0], with_value[1]]
+					3:
+						return "%02X %02X %02X" % [with_value[0], with_value[1], with_value[2]]
+					4:
+						return "%02X %02X %02X %02X" % [with_value[0], with_value[1], with_value[2], with_value[3]]
+					_:
+						return "%02X %02X %02X..." % [with_value[0], with_value[1], with_value[2]]
 			_:
 				return str(with_value)
 	else:

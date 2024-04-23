@@ -94,11 +94,12 @@ func PE_open(path):
 		update_hex_view()
 		HEXVIEW_SLIDER.value = HEXVIEW_SLIDER.max_value
 		
-		# asm chunks & disassembler
+		# asm chunks, disassembler, imports/exports, info panels etc
 		fill_ChunkTable()
 		fill_ImportExportEtcTables()
 		update_asm_scrollbar_size()
 		update_asm_view()
+		update_info_extra_panels()
 		
 		# move the file path to the most recent spot in file history
 		add_to_recent(path)
@@ -191,6 +192,8 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 	
 	return total_bytes
 func _on_ChunkTable_cell_selected():
+	if Input.is_action_pressed("ctrl"):
+		return _on_ChunkTable_item_activated()
 	var selection = CHUNKS_LIST.get_selected()
 	var metadata = selection.get_metadata(0)
 	CHUNKS_DATA.clear()
@@ -238,6 +241,7 @@ func _on_ChunkTable_item_activated():
 onready var EXPORTS_TABLE = $VSplitContainer/Main/TabContainer/Exports
 onready var IMPORTS_TABLE = $VSplitContainer/Main/TabContainer/Imports
 onready var BUTTON_IAT_MODE = $VSplitContainer/Main/TabContainer/Imports/IATMode
+onready var INFO_PANEL = $VSplitContainer/Main/TabContainer/Info
 func fill_ImportExportEtcTables():
 	# imports
 	IMPORTS_TABLE.clear()
@@ -285,10 +289,18 @@ func fill_ImportExportEtcTables():
 		var name_rva = PE.EXPORT_TABLES.EXPORT.raw_chunks.NameRVA.value
 		var dll_name = PE.file.get_null_terminated_string(PE.RVA_to_file_offset(name_rva))
 		parent_item.set_text(0,"%s (%d)" % [dll_name, num_exports_in_parent])
-	
 func _on_IATMode_toggled(_button_pressed):
 	fill_ImportExportEtcTables()
-
+func update_info_extra_panels():
+	INFO_PANEL.text = ""
+	if PE.file != null:
+		INFO_PANEL.text += "Target platform: %s\n" % [
+			Log.get_enum_string(PE.MACHINE_TYPES, PE.asm_chunks._IMAGE_NT_HEADERS.FileHeader.Machine.value)
+		]
+		INFO_PANEL.text += "Format: %s (%s)\n" % [
+			DataStruct.as_text(PE.asm_chunks._IMAGE_NT_HEADERS.Signature),
+			DataStruct.as_text(PE.asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.Magic),
+		]
 
 ##### CODING / MAIN PANELS
 var middle_height = 0
@@ -666,6 +678,7 @@ func _input(_event):
 		_on_BtnAddr_pressed()
 	if Input.is_action_just_pressed("backspace"):
 		fill_ImportExportEtcTables()
+		update_info_extra_panels()
 		Log.generic(null,"reloaded!")
 
 func _on_focus_change_intercept(node):

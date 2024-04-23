@@ -1,7 +1,7 @@
 extends Node
 
 enum PE_SIGNATURE {
-	WIN32 = int("PE")
+	WIN32 = 0x5045
 	WIN16 = int("NE")
 	WIN3X_VxD = int("LE")
 	OS2 = int("LX")
@@ -160,6 +160,13 @@ enum CERTIFICATE_TYPE {
 	PKCS_SIGNED_DATA = 2			# bCertificate contains a PKCS#7 SignedData structure
 	RESERVED_1 = 3					# (reserved)
 	TS_STACK_SIGNED = 4				# Terminal Server Protocol Stack Certificate signing
+}
+enum UNW_FLAGS {
+	NHANDLER = 0x0		# The function has no handler.
+	EHANDLER = 0x1		# The function has an exception handler that should be called.
+	UHANDLER = 0x2		# The function has a termination handler that should be called when unwinding an exception.
+	FHANDLER = 0x3		# "Frame handler" (??)
+	CHAININFO = 0x4		# The FunctionEntry member is the contents of a previous function table entry.
 }
 
 ## PRODID FILE
@@ -448,12 +455,25 @@ func read_asm_chunks():
 		# .idata
 		read_idata()
 		
+		# .pdata
+		read_pdata()
+		
 		# Fill in the actual section data
 		section_chunks_fill_formatted()
 		
 		return true
 
-func formatted_subsection_mapping(subsection_name, data):
+func formatted_subsection_mapping(subsection_name, data, force_single_raw = false):
+	if data.size == 0:
+		return null
+	if force_single_raw:
+		file.seek(data.offset)
+		return {
+			"offset": data.offset,
+			"size": data.size,
+			"name": subsection_name,
+			"raw_chunks": file.read(data.size)
+		}
 	return {
 		"offset": data.offset,
 		"size": data.size,
@@ -478,6 +498,8 @@ func section_chunks_fill_formatted(): # this is an UNGODLY spaghetti mess.......
 				continue # this overlaps with other mapped subsections
 			if dir_name == "EXPORT":
 				continue # this overlaps with other mapped subsections
+#			if dir_name == "EXCEPTION":
+#				continue # this overlaps with other mapped subsections
 			if dir_name == "IAT":
 				continue # already covered in known subsections
 			if data_dir_section(dir_name) == section_info:
@@ -487,7 +509,7 @@ func section_chunks_fill_formatted(): # this is an UNGODLY spaghetti mess.......
 					"name": dir_name
 				})
 		
-		# other known subsections
+		# .edata
 		if offset_to_section(EXPORT_TABLES.EXPORT.offset) == section_info:
 			mapped_subsections.push_back(formatted_subsection_mapping("ExportDirectoryTable",EXPORT_TABLES.EXPORT))
 		if offset_to_section(EXPORT_TABLES.EAT.offset) == section_info:
@@ -498,7 +520,8 @@ func section_chunks_fill_formatted(): # this is an UNGODLY spaghetti mess.......
 			mapped_subsections.push_back(formatted_subsection_mapping("OrdinalTable",EXPORT_TABLES.OT))
 		if offset_to_section(EXPORT_TABLES.NAMES.offset) == section_info:
 			mapped_subsections.push_back(formatted_subsection_mapping("ExportSymbolNames",EXPORT_TABLES.NAMES))
-			
+		
+		# .idata
 		if offset_to_section(IMPORT_TABLES.IMPORT.offset) == section_info:
 			mapped_subsections.push_back(formatted_subsection_mapping("ImportDirectoryTable",IMPORT_TABLES.IMPORT))
 		if offset_to_section(IMPORT_TABLES.ILT.offset) == section_info:
@@ -507,7 +530,13 @@ func section_chunks_fill_formatted(): # this is an UNGODLY spaghetti mess.......
 			mapped_subsections.push_back(formatted_subsection_mapping("IAT",IMPORT_TABLES.IAT))
 		if offset_to_section(IMPORT_TABLES.HINTS.offset) == section_info:
 			mapped_subsections.push_back(formatted_subsection_mapping("HintNameTable",IMPORT_TABLES.HINTS))
-			
+		
+		# .pdata
+		if offset_to_section(EXCEPTION_TABLE.RUNTIME.offset) == section_info:
+			mapped_subsections.push_back(formatted_subsection_mapping("ExceptionHandlersRuntime",EXCEPTION_TABLE.RUNTIME, true))
+		if offset_to_section(EXCEPTION_TABLE.UNWIND.offset) == section_info:
+			mapped_subsections.push_back(formatted_subsection_mapping("ExceptionUnwindInfo",EXCEPTION_TABLE.UNWIND, true))
+		
 		# sort the subsection array by memory offset
 		mapped_subsections.sort_custom(self, "sort_by_offset")
 		
@@ -520,6 +549,8 @@ func section_chunks_fill_formatted(): # this is an UNGODLY spaghetti mess.......
 		else:
 			var last_mapped_offset = section_start
 			for s in range(0, mapped_subsections.size()):
+				if mapped_subsections[s] == null:
+					continue
 				
 				
 				# unmapped bytes since the last mapped chunk
@@ -957,6 +988,154 @@ func get_import_thunk(table_name, import_id, thunk_id, formatted): # this does N
 		return IMPORT_TABLES[table_name].formatted[import_id][thunk_id]
 	else:
 		return IMPORT_TABLES[table_name].raw_chunks[import_id][thunk_id]
+
+## .pdata / exception handlers / etc.
+var EXCEPTION_TABLE = {
+	"RUNTIME": {
+		"offset": -1,
+		"size": 0,
+		"raw_chunks": {}
+	},
+	"UNWIND": {
+		"offset": -1,
+		"size": 0,
+		"raw_chunks": []
+	}
+}
+func read_pdata():
+	var NO_FULL_RAW_PARSING = true
+	EXCEPTION_TABLE.RUNTIME.offset = data_dir_offset("EXCEPTION")
+	if EXCEPTION_TABLE.RUNTIME.offset != -1:
+		file.seek(EXCEPTION_TABLE.RUNTIME.offset)
+		EXCEPTION_TABLE.RUNTIME.raw_chunks = {}
+		EXCEPTION_TABLE.RUNTIME.size = 0
+		EXCEPTION_TABLE.RUNTIME.cache = []
+		
+		if NO_FULL_RAW_PARSING:
+			return
+		
+		# init unwind info data
+		EXCEPTION_TABLE.UNWIND.raw_chunks = []
+		var unwind_offsets = []
+		
+		# supported target platforms?
+		match asm_chunks._IMAGE_NT_HEADERS.FileHeader.Machine.value:
+			MACHINE_TYPES.AMD64, MACHINE_TYPES.I386:
+				var num_handlers = 0
+				while true:
+					var chunk = null
+					file.seek(EXCEPTION_TABLE.RUNTIME.offset + 12 * num_handlers)
+					chunk = {
+						"BeginAddress": file.read("rva32"),
+						"EndAddress": file.read("rva32"),
+						"UnwindInformation": file.read("rva32")
+					}
+					if chunk.BeginAddress.value == 0x0: # last entry reached?
+						EXCEPTION_TABLE.RUNTIME.size = 12 * num_handlers
+						break
+					var handler_label = str("_0x%08X" % [chunk.BeginAddress.value])
+					EXCEPTION_TABLE.RUNTIME.raw_chunks[handler_label] = chunk
+					num_handlers += 1
+					
+					# unwind info
+					var unwind_rva = chunk.UnwindInformation.value
+					var unwind_offset = RVA_to_file_offset(unwind_rva)
+					if !(unwind_offset in unwind_offsets):
+						unwind_offsets.push_front(unwind_offset)
+				
+			_: # if not supported, just push a raw byte buffer as before
+				var pdata_size = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory["EXCEPTION"].Size.value
+				EXCEPTION_TABLE.RUNTIME.raw_chunks = file.read(pdata_size)
+				EXCEPTION_TABLE.RUNTIME.size = pdata_size
+		
+		# read unwind info
+		var highest_unwind_info_offset = -1
+		unwind_offsets.sort()
+		for unwind_offset in unwind_offsets:
+			file.seek(unwind_offset)
+			if unwind_offset < EXCEPTION_TABLE.UNWIND.offset || EXCEPTION_TABLE.UNWIND.offset == -1:
+				EXCEPTION_TABLE.UNWIND.offset = unwind_offset
+			var unwind_chunk = {
+				"VersionAndFlags": file.read("u8"),
+				"SizeOfProlog": file.read("u8"),
+				"CountOfUnwindCodes": file.read("u8"),
+				"FrameRegister": file.read("u8"),
+				"UnwindCodes": []
+			}
+			for _i in unwind_chunk.CountOfUnwindCodes.value:
+				unwind_chunk.UnwindCodes.push_back({
+					"OffsetInProlog": file.read("u8"),
+					"OperationCodeAndInfo": file.read("u8"),
+				})
+			
+			# add padding at the end to make the struct DWORD-aligned
+			var unwind_info_end_alignment = file.get_position() % 4
+			if unwind_info_end_alignment != 0:
+				unwind_chunk["AlignPadding"] = file.read(4 - unwind_info_end_alignment)
+			
+			# optional fields
+			var flags = (unwind_chunk.VersionAndFlags.value & 0xf8) >> 3
+			if flags & UNW_FLAGS.CHAININFO:
+				unwind_chunk["ChainedExceptionRuntimeRVA"] = file.read("rva32")
+			elif flags & UNW_FLAGS.EHANDLER || flags & UNW_FLAGS.UHANDLER:
+				unwind_chunk["ExceptionHandlerRVA"] = file.read("rva32")
+				unwind_chunk["ExceptionData"] = file.read(4)
+			
+			if file.get_position() > highest_unwind_info_offset:
+				highest_unwind_info_offset = file.get_position()
+			EXCEPTION_TABLE.UNWIND.raw_chunks.push_back(unwind_chunk)
+#		EXCEPTION_TABLE.UNWIND.raw_chunks.sort_custom(self, "sort_by_offset")
+		EXCEPTION_TABLE.UNWIND.size = highest_unwind_info_offset - EXCEPTION_TABLE.UNWIND.offset
+func get_exception_handler_runtime_info(i):
+	if EXCEPTION_TABLE.RUNTIME.offset != -1:
+		match asm_chunks._IMAGE_NT_HEADERS.FileHeader.Machine.value: # supported platforms?
+			MACHINE_TYPES.AMD64, MACHINE_TYPES.I386:
+				var offset = 12 * i
+				if offset >= asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.EXCEPTION.Size.value:
+					return null
+				file.seek(EXCEPTION_TABLE.RUNTIME.offset + offset)
+				return {
+					"BeginAddress": file.read("rva32"),
+					"EndAddress": file.read("rva32"),
+					"UnwindInformation": file.read("rva32")
+				}
+	return null
+func get_exception_unwind_info(i):
+	var handler_info = get_exception_handler_runtime_info(i)
+	if handler_info != null:
+		var unwind_rva = handler_info.UnwindInformation.value
+		var unwind_offset = RVA_to_file_offset(unwind_rva)
+		
+		# parse unwind info data
+		file.seek(unwind_offset)
+		var unwind_chunk = {
+			"VersionAndFlags": file.read("u8"),
+			"SizeOfProlog": file.read("u8"),
+			"CountOfUnwindCodes": file.read("u8"),
+			"FrameRegister": file.read("u8"),
+			"UnwindCodes": []
+		}
+		for _i in unwind_chunk.CountOfUnwindCodes.value:
+			unwind_chunk.UnwindCodes.push_back({
+				"OffsetInProlog": file.read("u8"),
+				"OperationCodeAndInfo": file.read("u8"),
+			})
+		
+		# add padding at the end to make the struct DWORD-aligned
+		var unwind_info_end_alignment = file.get_position() % 4
+		if unwind_info_end_alignment != 0:
+			unwind_chunk["AlignPadding"] = file.read(4 - unwind_info_end_alignment)
+		
+		# optional fields
+		var flags = (unwind_chunk.VersionAndFlags.value & 0xf8) >> 3
+		if flags & UNW_FLAGS.CHAININFO:
+			unwind_chunk["ChainedExceptionRuntimeRVA"] = file.read("rva32")
+		elif flags & UNW_FLAGS.EHANDLER || flags & UNW_FLAGS.UHANDLER:
+			unwind_chunk["ExceptionHandlerRVA"] = file.read("rva32")
+			unwind_chunk["ExceptionData"] = file.read(4)
+		
+		return unwind_chunk
+	return null
 
 ###
 

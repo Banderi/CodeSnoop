@@ -183,10 +183,11 @@ func recursive_fill_ChunkTable(item, parent, itemname):
 	# uncollapse _SECTIONS chunks in the table by default
 	if itemname == "_SECTIONS":
 		table_item.collapsed = false
-#		var child = table_item.get_children()
-#		while child != null:
+		var child = table_item.get_children()
+		while child != null:
 #			child.collapsed = false
-#			child = child.get_next()
+			child.set_custom_color(0, Color(0.9,0.8,0.7,0.5))
+			child = child.get_next()
 	
 	return total_bytes
 func _on_ChunkTable_cell_selected():
@@ -195,7 +196,8 @@ func _on_ChunkTable_cell_selected():
 	CHUNKS_DATA.clear()
 	if metadata == null:
 		return
-	CHUNKS_DATA.present(metadata[0], metadata[1])
+	if metadata[2] == 0:
+		return
 	
 	# get the chunk offset in memory
 	var offset = null
@@ -215,6 +217,9 @@ func _on_ChunkTable_cell_selected():
 	# found a valid offset?
 	if offset != null:
 		hex_scroll_to(offset, offset + metadata[2])
+	
+	# present inner chunk data in the detailed list table
+	CHUNKS_DATA.present(metadata[0], metadata[1])
 func _on_ChunkTable_item_activated():
 	var selection = CHUNKS_LIST.get_selected()
 	selection.collapsed = !selection.collapsed
@@ -265,7 +270,22 @@ func fill_ImportExportEtcTables():
 					item.set_text(0, str(formatted.fn_name))
 				num_imports_in_parent += 1
 			
-			parent_item.set_text(0,"%s (%d)" % [dll_name, num_imports_in_parent])	
+			parent_item.set_text(0,"%s (%d)" % [dll_name, num_imports_in_parent])
+	
+	# exports
+	EXPORTS_TABLE.clear()
+	EXPORTS_TABLE.create_item()
+	if PE.EXPORT_TABLES.EXPORT.offset != -1 && PE.EXPORT_TABLES.EXPORT.raw_chunks.size() != 0:
+		var parent_item = EXPORTS_TABLE.create_item()
+		var num_exports_in_parent = 0
+		for export_name in PE.EXPORT_TABLES.NPT.raw_chunks:
+			var item = EXPORTS_TABLE.create_item(parent_item)
+			item.set_text(0, str(export_name))
+			num_exports_in_parent += 1
+		var name_rva = PE.EXPORT_TABLES.EXPORT.raw_chunks.NameRVA.value
+		var dll_name = PE.file.get_null_terminated_string(PE.RVA_to_file_offset(name_rva))
+		parent_item.set_text(0,"%s (%d)" % [dll_name, num_exports_in_parent])
+	
 func _on_IATMode_toggled(_button_pressed):
 	fill_ImportExportEtcTables()
 

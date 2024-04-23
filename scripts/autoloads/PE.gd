@@ -443,58 +443,10 @@ func read_asm_chunks():
 		##### DATA DIRECTORIES
 		
 		# .edata
-		edata_table_offset = data_dir_offset("EXPORT")
-		if edata_table_offset != -1:
-			file.seek(edata_table_offset)
+		read_edata()
 		
 		# .idata
-		IMPORT_TABLES.IMPORT.offset = data_dir_offset("IMPORT")
-		if IMPORT_TABLES.IMPORT.offset != -1:
-			
-			# Import Directory Table
-			IMPORT_TABLES.IMPORT.raw_chunks = {}
-			IMPORT_TABLES.HINTS.raw_chunks = {}
-			IMPORT_TABLES.HINTS.ordered_array = []
-			var next_offset = IMPORT_TABLES.IMPORT.offset
-			while true:
-				file.seek(next_offset)
-				var chunk = {
-					"OriginalFirstThunk": file.read("rva32"), # aka the RVA to the ImportLookupTable
-					"TimeDateStamp": file.read("u32"),
-					"ForwarderChain": file.read("u32"),
-					"Name1": file.read("rva32"), # aka the RVA to the ASCII name of the DLL
-					"FirstThunk": file.read("rva32") # RVA to ImportAddressTable thunk if the import is bound, or a copy of OriginalFirstThunk
-				}
-				next_offset = file.get_position()
-				if chunk.OriginalFirstThunk.value == 0: # last entry reached?
-					IMPORT_TABLES.IMPORT.raw_chunks["__empty_end"] = chunk
-					IMPORT_TABLES.IMPORT.size = next_offset - IMPORT_TABLES.IMPORT.offset
-					break
-				else:
-					var name_rva = RVA_to_file_offset(chunk.Name1.value)
-					var import_name = file.get_null_terminated_string(name_rva)
-					IMPORT_TABLES.IMPORT.raw_chunks[import_name] = chunk
-			
-			# Import Lookup Tables
-			IMPORT_TABLES.ILT = fill_thunk_table("OriginalFirstThunk")
-			
-			# Import Address Tables
-			IMPORT_TABLES.IAT = fill_thunk_table("FirstThunk")
-			
-			# Hint/Name Table
-			var num_hint_entries = IMPORT_TABLES.HINTS.ordered_array.size()
-			if num_hint_entries > 0:
-				IMPORT_TABLES.HINTS.ordered_array.sort_custom(self, "sort_by_offset")
-				IMPORT_TABLES.HINTS.offset = IMPORT_TABLES.HINTS.ordered_array[0].Hint.offset
-				var last_entry = IMPORT_TABLES.HINTS.ordered_array[num_hint_entries - 1]
-				var hints_size = last_entry.Name.offset + last_entry.Name.size - IMPORT_TABLES.HINTS.offset
-				if "Pad" in last_entry:
-					hints_size += last_entry.Pad.size
-				IMPORT_TABLES.HINTS.size = hints_size
-				print("%d hints starting at %X for %d bytes" % [num_hint_entries, IMPORT_TABLES.HINTS.offset, IMPORT_TABLES.HINTS.size])
-				for hint in IMPORT_TABLES.HINTS.ordered_array:
-					var fn_name = file.get_null_terminated_string(hint.Name.offset)
-					IMPORT_TABLES.HINTS.raw_chunks[fn_name] = hint
+		read_idata()
 		
 		# Fill in the actual section data
 		section_chunks_fill_formatted()
@@ -508,12 +460,12 @@ func formatted_subsection_mapping(subsection_name, data):
 		"name": subsection_name,
 		"raw_chunks": data.raw_chunks
 	}
-func section_chunks_fill_formatted():
+func section_chunks_fill_formatted(): # this is an UNGODLY spaghetti mess......... I should rewrite it eventually.
 	for i in asm_chunks._SECTION_HEADERS.size():
 		var section_name = asm_chunks._SECTION_HEADERS.keys()[i]
 		var section_info = asm_chunks._SECTION_HEADERS[section_name]
-		var size = section_info.SizeOfRawData.value
-		if size < 1:
+		var section_size = section_info.SizeOfRawData.value
+		if section_size < 1:
 			continue
 		
 		# determine if some data directory table has been found inside this section
@@ -523,6 +475,8 @@ func section_chunks_fill_formatted():
 			if dir_name == "SECURITY":
 				continue # this does not map to a PE section
 			if dir_name == "IMPORT":
+				continue # this overlaps with other mapped subsections
+			if dir_name == "EXPORT":
 				continue # this overlaps with other mapped subsections
 			if dir_name == "IAT":
 				continue # already covered in known subsections
@@ -534,24 +488,35 @@ func section_chunks_fill_formatted():
 				})
 		
 		# other known subsections
+		if offset_to_section(EXPORT_TABLES.EXPORT.offset) == section_info:
+			mapped_subsections.push_back(formatted_subsection_mapping("ExportDirectoryTable",EXPORT_TABLES.EXPORT))
+		if offset_to_section(EXPORT_TABLES.EAT.offset) == section_info:
+			mapped_subsections.push_back(formatted_subsection_mapping("ExportAddressTable",EXPORT_TABLES.EAT))
+		if offset_to_section(EXPORT_TABLES.NPT.offset) == section_info:
+			mapped_subsections.push_back(formatted_subsection_mapping("NamePointerTable",EXPORT_TABLES.NPT))
+		if offset_to_section(EXPORT_TABLES.OT.offset) == section_info:
+			mapped_subsections.push_back(formatted_subsection_mapping("OrdinalTable",EXPORT_TABLES.OT))
+		if offset_to_section(EXPORT_TABLES.NAMES.offset) == section_info:
+			mapped_subsections.push_back(formatted_subsection_mapping("ExportSymbolNames",EXPORT_TABLES.NAMES))
+			
 		if offset_to_section(IMPORT_TABLES.IMPORT.offset) == section_info:
-			mapped_subsections.push_back(formatted_subsection_mapping("IMPORT",IMPORT_TABLES.IMPORT))
+			mapped_subsections.push_back(formatted_subsection_mapping("ImportDirectoryTable",IMPORT_TABLES.IMPORT))
 		if offset_to_section(IMPORT_TABLES.ILT.offset) == section_info:
-			mapped_subsections.push_back(formatted_subsection_mapping("ILT",IMPORT_TABLES.ILT))
+			mapped_subsections.push_back(formatted_subsection_mapping("ImportLookupTable",IMPORT_TABLES.ILT))
 		if offset_to_section(IMPORT_TABLES.IAT.offset) == section_info:
 			mapped_subsections.push_back(formatted_subsection_mapping("IAT",IMPORT_TABLES.IAT))
 		if offset_to_section(IMPORT_TABLES.HINTS.offset) == section_info:
-			mapped_subsections.push_back(formatted_subsection_mapping("HINTS",IMPORT_TABLES.HINTS))
+			mapped_subsections.push_back(formatted_subsection_mapping("HintNameTable",IMPORT_TABLES.HINTS))
 			
 		# sort the subsection array by memory offset
 		mapped_subsections.sort_custom(self, "sort_by_offset")
 		
 		# go through the found mapped subsections (if any) and read the file chunks accordingly, spacing out
 		# with any unmapped data in between if necessary
-		var chunk = {}
+		var section_chunks = {}
 		file.seek(section_start)
 		if mapped_subsections.size() == 0:
-			chunk = file.read(size)
+			section_chunks = file.read(section_size)
 		else:
 			var last_mapped_offset = section_start
 			for s in range(0, mapped_subsections.size()):
@@ -561,30 +526,34 @@ func section_chunks_fill_formatted():
 				file.seek(last_mapped_offset)
 				var unammped_bytes = mapped_subsections[s].offset - last_mapped_offset
 				if unammped_bytes > 0:
-					chunk[str("unmapped",file.get_position())] = file.read(unammped_bytes)
+					section_chunks[str("unmapped",file.get_position())] = file.read(unammped_bytes)
 					last_mapped_offset += unammped_bytes
 				assert(last_mapped_offset == file.get_position())
 				assert(last_mapped_offset == mapped_subsections[s].offset)
 				
 				# mapped chunk
 				if "raw_chunks" in mapped_subsections[s] && mapped_subsections[s].raw_chunks != null:
-					chunk[mapped_subsections[s].name] = mapped_subsections[s].raw_chunks
+					section_chunks[mapped_subsections[s].name] = mapped_subsections[s].raw_chunks
 					file.seek(file.get_position() + mapped_subsections[s].size)
 				else:
-					chunk[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
+					section_chunks[mapped_subsections[s].name] = file.read(mapped_subsections[s].size)
 				
 				# advance pointer
 				last_mapped_offset = mapped_subsections[s].offset + mapped_subsections[s].size
 			
 			# append any unmapped leftover bytes if present
-			var bytes_left = (section_start + size) - file.get_position()
+			var bytes_left = (section_start + section_size) - file.get_position()
 			if bytes_left > 0:
-				chunk[str("unmapped",file.get_position())] = file.read(bytes_left)
+				var chunk = file.read(bytes_left)
+				if chunk.value.count(0) == bytes_left:
+					section_chunks["_SECTION_END_PAD"] = chunk
+				else:
+					section_chunks[str("unmapped",file.get_position())] = chunk
 		
 		# update section name from COFF string format when needed
 		if section_name.begins_with("/"):
 			section_name = get_coff_string(section_name.to_int())
-		asm_chunks["_SECTIONS"][section_name] = chunk
+		asm_chunks["_SECTIONS"][section_name] = section_chunks
 func is_PE32_64():
 	return asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.Magic.value == PE_TYPE.PE32_64
 		
@@ -695,11 +664,118 @@ func get_coff_string(offset):
 		return null
 	return file.get_null_terminated_string(coff_string_table_offset + offset)
 
-## .edata
-var edata_table_offset = -1
+## .edata / Exports / EAT / etc.
+var EXPORT_TABLES = {
+	"EXPORT": {
+		"offset": -1,
+		"size": 0,
+		"raw_chunks": {}
+	},
+	"EAT": {
+		"offset": -1,
+		"size": 0,
+		"raw_chunks": []
+	},
+	"NPT": {
+		"offset": -1,
+		"size": 0,
+		"raw_chunks": {}
+	},
+	"OT": {
+		"offset": -1,
+		"size": 0,
+		"raw_chunks": {}
+	},
+	"NAMES": {
+		"offset": -1,
+		"size": 0,
+		"raw_chunks": {}
+	}
+}
+func read_edata():
+	EXPORT_TABLES.EXPORT.offset = data_dir_offset("EXPORT")
+	if EXPORT_TABLES.EXPORT.offset != -1:
+		# Export Directory Table
+		file.seek(EXPORT_TABLES.EXPORT.offset)
+		EXPORT_TABLES.EXPORT.size = 40
+		EXPORT_TABLES.EXPORT.raw_chunks = {
+			"ExportFlags": file.read("u32"),
+			"TimeDateStamp": file.read("u32"),
+			"MajorVersion": file.read("u16"),
+			"MinorVersion": file.read("u16"),
+			"NameRVA": file.read("rva32"),
+			"OrdinalBase": file.read("u32"),
+			"AddressTableEntries": file.read("u32"), # EAT entries
+			"NamePointerEntries": file.read("u32"), # name pointer table / ordinal table entries
+			"ExportAddressTableRVA": file.read("rva32"), # actual addresses to symbols
+			"NamePointerRVA": file.read("rva32"),
+			"OrdinalTableRVA": file.read("rva32")
+		}
+		
+		# Name Pointer Table: this holds pointers to ASCII names -- it is searched when importing by name by an image
+		var export_names_ordered_list = []
+		EXPORT_TABLES.NPT.offset = RVA_to_file_offset(EXPORT_TABLES.EXPORT.raw_chunks.NamePointerRVA.value)
+		if EXPORT_TABLES.NPT.offset != null:
+			EXPORT_TABLES.NPT.raw_chunks = {}
+			file.seek(EXPORT_TABLES.NPT.offset)
+			for i in EXPORT_TABLES.EXPORT.raw_chunks.NamePointerEntries.value:
+				file.seek(EXPORT_TABLES.NPT.offset + 4 * i)
+				var rva = file.read("rva32")
+				var name_offset = RVA_to_file_offset(rva.value)
+				var symbol_name = file.get_null_terminated_string(name_offset)
+				file.seek(name_offset)
+				var raw_name_chunk = file.read(str("str", symbol_name.length() + 1))
+				export_names_ordered_list.push_back(raw_name_chunk)
+				EXPORT_TABLES.NPT.raw_chunks[symbol_name] = rva
+			EXPORT_TABLES.NPT.size = 4 * EXPORT_TABLES.EXPORT.raw_chunks.NamePointerEntries.value
+			
+		# Ordinal Table: this holds the index to a EAT member, arranged in the exact same order of the NPT above
+		EXPORT_TABLES.OT.offset = RVA_to_file_offset(EXPORT_TABLES.EXPORT.raw_chunks.OrdinalTableRVA.value)
+		if EXPORT_TABLES.OT.offset != null:
+			EXPORT_TABLES.OT.raw_chunks = {}
+			file.seek(EXPORT_TABLES.OT.offset)
+			for i in EXPORT_TABLES.EXPORT.raw_chunks.NamePointerEntries.value:
+				var ordinal = file.read("u16")
+				var symbol_name = get_export_name_by_table_index(i)
+				EXPORT_TABLES.OT.raw_chunks[symbol_name] = ordinal
+			EXPORT_TABLES.OT.size = 2 * EXPORT_TABLES.EXPORT.raw_chunks.NamePointerEntries.value
+		
+		# Export Address Table: this holds the actual pointer to the symbol, indexed by Ordinal
+		EXPORT_TABLES.EAT.offset = RVA_to_file_offset(EXPORT_TABLES.EXPORT.raw_chunks.ExportAddressTableRVA.value)
+		if EXPORT_TABLES.EAT.offset != null:
+			EXPORT_TABLES.EAT.raw_chunks = {}
+			file.seek(EXPORT_TABLES.EAT.offset)
+			for i in EXPORT_TABLES.EXPORT.raw_chunks.AddressTableEntries.value:
+				var entry_point = file.read("rva32")
+				var symbol_name = get_export_name_by_entry_point_index(i)
+				EXPORT_TABLES.EAT.raw_chunks[symbol_name] = entry_point
+			EXPORT_TABLES.EAT.size = 4 * EXPORT_TABLES.EXPORT.raw_chunks.AddressTableEntries.value
+		
+		# Export Name Table: this holds the actual ASCII string names of the symbols
+		EXPORT_TABLES.NAMES.offset = RVA_to_file_offset(EXPORT_TABLES.EXPORT.raw_chunks.NameRVA.value) # we assume this is the start!
+		var base_name = file.get_null_terminated_string(EXPORT_TABLES.NAMES.offset)
+		file.seek(EXPORT_TABLES.NAMES.offset)
+		var base_name_raw_chunk = file.read(str("str", base_name.length() + 1))
+		export_names_ordered_list.push_back(base_name_raw_chunk)
+		export_names_ordered_list.sort_custom(self, "sort_by_offset")
+		var total_ent_size = 0
+		EXPORT_TABLES.NAMES.raw_chunks = {}
+		for chunk in export_names_ordered_list:
+			var symbol_name = file.get_null_terminated_string(chunk.offset)
+			EXPORT_TABLES.NAMES.raw_chunks[symbol_name] = chunk
+			total_ent_size += chunk.size
+		EXPORT_TABLES.NAMES.size = total_ent_size
+func get_export_name_by_table_index(i):
+	return EXPORT_TABLES.NPT.raw_chunks.keys()[i]
+func get_export_name_by_biased_ordinal(ordinal):
+	return get_export_name_by_entry_point_index(ordinal - EXPORT_TABLES.EXPORT.raw_chunks.OrdinalBase.value)
+func get_export_name_by_entry_point_index(i):
+	for symbol_name in EXPORT_TABLES.OT.raw_chunks:
+		if i == EXPORT_TABLES.OT.raw_chunks[symbol_name].value:
+			return symbol_name
+	return str("_not_found_", i)
 
-## Imports / IAT / ILT / function thunks
-var iat_offset = -1
+## .idata / Imports / IAT / ILT / thunks etc.
 var IMPORT_TABLES = {
 	"IMPORT": {
 		"offset": -1,
@@ -715,6 +791,54 @@ var IMPORT_TABLES = {
 		"ordered_array": []
 	}
 }
+func read_idata():
+	IMPORT_TABLES.IMPORT.offset = data_dir_offset("IMPORT")
+	if IMPORT_TABLES.IMPORT.offset != -1:
+		
+		# Import Directory Table
+		IMPORT_TABLES.IMPORT.raw_chunks = {}
+		IMPORT_TABLES.HINTS.raw_chunks = {}
+		IMPORT_TABLES.HINTS.ordered_array = []
+		var next_offset = IMPORT_TABLES.IMPORT.offset
+		while true:
+			file.seek(next_offset)
+			var chunk = {
+				"OriginalFirstThunk": file.read("rva32"), # aka the RVA to the ImportLookupTable
+				"TimeDateStamp": file.read("u32"),
+				"ForwarderChain": file.read("u32"),
+				"Name1": file.read("rva32"), # aka the RVA to the ASCII name of the DLL
+				"FirstThunk": file.read("rva32") # RVA to ImportAddressTable thunk if the import is bound, or a copy of OriginalFirstThunk
+			}
+			next_offset = file.get_position()
+			if chunk.OriginalFirstThunk.value == 0: # last entry reached?
+				IMPORT_TABLES.IMPORT.raw_chunks["__empty_end"] = chunk
+				IMPORT_TABLES.IMPORT.size = next_offset - IMPORT_TABLES.IMPORT.offset
+				break
+			else:
+				var name_offset = RVA_to_file_offset(chunk.Name1.value)
+				var import_name = file.get_null_terminated_string(name_offset)
+				IMPORT_TABLES.IMPORT.raw_chunks[import_name] = chunk
+		
+		# Import Lookup Tables
+		IMPORT_TABLES.ILT = fill_thunk_table("OriginalFirstThunk")
+		
+		# Import Address Tables
+		IMPORT_TABLES.IAT = fill_thunk_table("FirstThunk")
+		
+		# Hint/Name Table
+		var num_hint_entries = IMPORT_TABLES.HINTS.ordered_array.size()
+		if num_hint_entries > 0:
+			IMPORT_TABLES.HINTS.ordered_array.sort_custom(self, "sort_by_offset")
+			IMPORT_TABLES.HINTS.offset = IMPORT_TABLES.HINTS.ordered_array[0].Hint.offset
+			var last_entry = IMPORT_TABLES.HINTS.ordered_array[num_hint_entries - 1]
+			var hints_size = last_entry.Name.offset + last_entry.Name.size - IMPORT_TABLES.HINTS.offset
+			if "Pad" in last_entry:
+				hints_size += last_entry.Pad.size
+			IMPORT_TABLES.HINTS.size = hints_size
+			print("%d hints starting at %X for %d bytes" % [num_hint_entries, IMPORT_TABLES.HINTS.offset, IMPORT_TABLES.HINTS.size])
+			for hint in IMPORT_TABLES.HINTS.ordered_array:
+				var fn_name = file.get_null_terminated_string(hint.Name.offset)
+				IMPORT_TABLES.HINTS.raw_chunks[fn_name] = hint
 func read_thunk_chunk(is_PE32_64): # TODO: move the content parsing here!
 	var data = null
 	if !is_PE32_64:
@@ -834,10 +958,11 @@ func get_import_thunk(table_name, import_id, thunk_id, formatted): # this does N
 	else:
 		return IMPORT_TABLES[table_name].raw_chunks[import_id][thunk_id]
 
+###
+
 # Dictionary of common PE file sections and descriptions. 
 # Taken from here: http://www.hexacorn.com/blog/2016/12/15/pe-section-names-re-visited/
 # Formatted by: https://gist.github.com/joenorton8014/a03499d2d170128c15d93f675d81295f
-
 var COMMON_SECTIONS = {
 	".00cfg":"Control Flow Guard CFG section added by newer versions of Visual Studio",
 	".apiset":"a section present inside the apisetschema.dll",

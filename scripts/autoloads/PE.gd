@@ -590,6 +590,10 @@ func is_PE32_64():
 		
 ## Sections / data dirs / RVA & offset helpers
 var PE_SECTIONS_ARRAY = []
+func get_image_base():
+	if file != null:
+		return asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.ImageBase.value
+	return null
 func offset_to_section(offset):
 	if file == null || offset == null:
 		return null

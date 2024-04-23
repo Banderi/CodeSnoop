@@ -4,6 +4,7 @@
 #include <Godot.hpp>
 #include <Node.hpp>
 
+
 namespace godot {
 
     class GDNShell : public Node {
@@ -29,6 +30,8 @@ namespace godot {
         String get_text(int _START_LINE, int _END_LINE);
         String get_all_text();
         void clear();
+
+        Array disassemble(PoolByteArray bytes);
 
         void _init(); // our initializer called by Godot
 

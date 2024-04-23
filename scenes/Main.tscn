@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=2]
+[gd_scene load_steps=16 format=2]
 
 [ext_resource path="res://scripts/main.gd" type="Script" id=1]
 [ext_resource path="res://TerminalBox.tres" type="StyleBox" id=2]
@@ -9,6 +9,7 @@
 [ext_resource path="res://scripts/VSliderInput.gd" type="Script" id=7]
 [ext_resource path="res://HexView.tres" type="StyleBox" id=8]
 [ext_resource path="res://AsciiView.tres" type="StyleBox" id=9]
+[ext_resource path="res://scripts/ASM.gd" type="Script" id=10]
 [ext_resource path="res://scenes/BtnRecentFile.tscn" type="PackedScene" id=11]
 
 [sub_resource type="StyleBoxFlat" id=6]
@@ -272,23 +273,34 @@ margin_bottom = 819.0
 size_flags_horizontal = 3
 size_flags_stretch_ratio = 3.0
 
-[node name="Disassembler" type="Tree" parent="VSplitContainer/Main/Middle/Code"]
+[node name="ASM" type="Control" parent="VSplitContainer/Main/Middle/Code"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 4.0
 margin_top = 32.0
 margin_right = -4.0
 margin_bottom = -4.0
+rect_clip_content = true
+mouse_filter = 2
+script = ExtResource( 10 )
+
+[node name="Disassembler" type="Tree" parent="VSplitContainer/Main/Middle/Code/ASM"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_right = -2.0
+margin_bottom = 17.0
 rect_min_size = Vector2( 15, 0 )
 size_flags_horizontal = 3
 size_flags_stretch_ratio = 2.0
+custom_constants/vseparation = -2
 custom_fonts/title_button_font = ExtResource( 4 )
 custom_fonts/font = ExtResource( 4 )
-columns = 3
+columns = 4
+column_titles_visible = true
 hide_folding = true
 hide_root = true
 
-[node name="VSlider" type="VSlider" parent="VSplitContainer/Main/Middle/Code/Disassembler"]
+[node name="VSlider" type="VSlider" parent="VSplitContainer/Main/Middle/Code/ASM"]
 anchor_left = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -756,8 +768,9 @@ caret_blink = true
 [connection signal="toggled" from="VSplitContainer/Main/Hex/Info/AsciiMode" to="." method="_on_AsciiMode_toggled"]
 [connection signal="cell_selected" from="VSplitContainer/Main/Middle/Chunks/List" to="." method="_on_ChunkTable_cell_selected"]
 [connection signal="item_activated" from="VSplitContainer/Main/Middle/Chunks/List" to="." method="_on_ChunkTable_item_activated"]
-[connection signal="scrolled" from="VSplitContainer/Main/Middle/Code/Disassembler/VSlider" to="." method="_on_VSlider_asm_scrolled"]
-[connection signal="value_changed" from="VSplitContainer/Main/Middle/Code/Disassembler/VSlider" to="VSplitContainer/Main/Middle/Code/Disassembler/VSlider" method="_on_VSlider_value_changed"]
+[connection signal="column_title_pressed" from="VSplitContainer/Main/Middle/Code/ASM/Disassembler" to="." method="_on_Disassembler_column_title_pressed"]
+[connection signal="scrolled" from="VSplitContainer/Main/Middle/Code/ASM/VSlider" to="." method="_on_VSlider_asm_scrolled"]
+[connection signal="value_changed" from="VSplitContainer/Main/Middle/Code/ASM/VSlider" to="VSplitContainer/Main/Middle/Code/ASM/VSlider" method="_on_VSlider_value_changed"]
 [connection signal="toggled" from="VSplitContainer/Main/TabContainer/Imports/IATMode" to="." method="_on_IATMode_toggled"]
 [connection signal="scrolling" from="VSplitContainer/Footer/Console/VScrollBar" to="VSplitContainer/Footer/Console/Terminal" method="_on_VScrollBar_scrolling"]
 [connection signal="text_entered" from="VSplitContainer/Footer/Console/Input" to="." method="_on_Input_text_entered"]

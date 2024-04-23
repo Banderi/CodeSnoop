@@ -311,6 +311,8 @@ func update_middle_panel_height():
 		middle_height = MIDDLE.rect_size.y
 		update_hex_scrollbar_size()
 		update_hex_view()
+		update_asm_scrollbar_size()
+		update_asm_view()
 func _on_VSplitContainer_dragged(_offset):
 	update_middle_panel_height()
 
@@ -549,20 +551,85 @@ func _on_AsciiMode_toggled(button_pressed):
 	update_hex_scrollbar_size()
 
 # asm / disassembler
-onready var ASM = $VSplitContainer/Main/Middle/Code/Disassembler
-onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/Disassembler/VSlider
+onready var ASM = $VSplitContainer/Main/Middle/Code/ASM/Disassembler
+onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/ASM/VSlider
+func asm_panel_visible_lines():
+	return floor((ASM.rect_size.y) / (14 + ASM.get("custom_constants/vseparation")) - 4)
 func update_asm_scrollbar_size():
 	if PE.file != null:
-		pass
+		# remember the previous relative position/scroll percentage
+		var perc = float(ASM_SLIDER.value) / float(ASM_SLIDER.max_value)
+		ASM_SLIDER.editable = true
+		var lines_count = PE.file.get_len()
+		var line_start = lines_count - asm_panel_visible_lines()
+		ASM_SLIDER.max_value = line_start
+		ASM_SLIDER.max_value = line_start
+		ASM_SLIDER.value = perc * float(ASM_SLIDER.max_value)
+		
+		# for some reason, the above... breaks? if the view is all the way at the bottom of the file.
+		# soooo...
+		if ASM_SLIDER.value < ASM_SLIDER.max_value:
+			ASM_SLIDER.value += 1
+			ASM_SLIDER.value -= 1
 	else:
-		ASM_SLIDER.max_value = 0
+		ASM_SLIDER.value = ASM_SLIDER.max_value
+		ASM_SLIDER.editable = false
 func update_asm_view():
 	ASM.clear()
 	ASM.create_item()
+	ASM.set_column_min_width(0,13)
+	ASM.set_column_min_width(1,25)
+	ASM.set_column_min_width(2,25)
+	ASM.set_column_min_width(3,45)
 	if PE.file != null:
-		var tree_item = ASM.create_item()
-		tree_item.set_text(0,"asda")
+		var num_lines = asm_panel_visible_lines()
+		var top_offset = (ASM_SLIDER.max_value - ASM_SLIDER.value)
+		var bottom_offset = top_offset + num_lines
+		
+		# disassemble!!!
+		var read_from = max(top_offset - 100, 0)
+		var read_to = min(bottom_offset + 100, PE.file.get_len())
+		PE.file.seek(read_from)
+		var buf = PE.file.get_buffer(read_to - read_from)
+		var disas = GDNShell.disassemble(buf)
+		for l in num_lines:
+			var tree_item = ASM.create_item()
+#			var curr_line = l + top_line
+			var asm_instr = disas[l]
+			var byte_offset = asm_instr[0] + top_offset
+			
+			PE.file.seek(byte_offset)
+			var raw_bytes = PE.file.get_buffer(asm_instr[3])
+			var hex_bytes = ""
+			for b in raw_bytes:
+				hex_bytes += "%02X " % [b]
+			
+			match ASM.get_column_title(0):
+				"VA":
+					var rva = PE.offset_to_RVA(byte_offset)
+					if rva == null:
+						rva = byte_offset
+					tree_item.set_text(0, "%08X" % [PE.get_image_base() + rva])
+				"RVA":
+					var rva = PE.offset_to_RVA(byte_offset)
+					if rva == null:
+						rva = byte_offset
+					tree_item.set_text(0, "%08X" % [rva])
+				"Raw":
+					tree_item.set_text(0, "%08X" % [byte_offset])
+			tree_item.set_text(1, "%s" % hex_bytes)
+			tree_item.set_text(2, "%s %s" % [asm_instr[1], asm_instr[2]])
+			tree_item.set_custom_color(0, Color(1,1,1,0.3))
 func _on_VSlider_asm_scrolled():
+	update_asm_view()
+func _on_Disassembler_column_title_pressed(column):
+	if column == 0:
+		var next = {
+			"VA": "RVA",
+			"RVA": "Raw",
+			"Raw": "VA",
+		}
+		ASM.set_column_title(0, next[ASM.get_column_title(0)])
 	update_asm_view()
 
 ############
@@ -606,6 +673,11 @@ func _ready():
 	# syntax highlighting
 	HEXVIEW_BYTES.clear_colors()
 	HEXVIEW_BYTES.add_keyword_color("00", Color(1,1,1,0.20)) #"767676" #81ff9200
+	
+	# ASM table columns
+	ASM.set_column_title(0, "VA")
+	ASM.set_column_title(1, "Bytes")
+	ASM.set_column_title(2, "Opcodes")
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 onready var CONSOLE_TERMINAL = $VSplitContainer/Footer/Console/Terminal
@@ -696,6 +768,8 @@ func _on_BtnClose_pressed():
 	PE.close_file()
 	update_hex_scrollbar_size()
 	update_hex_view()
+	update_asm_scrollbar_size()
+	update_asm_view()
 	CHUNKS_LIST.clear()
 	CHUNKS_DATA.clear()
 	EXPORTS_TABLE.clear()

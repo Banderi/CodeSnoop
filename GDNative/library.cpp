@@ -8,6 +8,13 @@
 #include "RichTextLabel.hpp"
 #include "TextHistory"
 
+#include "dynzasm/disas.h"
+#include "dss.h"
+
+extern "C" void ds_decode(disassembler*, unsigned char*, int, unsigned long long);
+extern "C" struct disassembler *ds_init(int isa, int mode);
+extern "C" void ds_destroy(struct disassembler *ds);
+
 using namespace godot;
 
 HANDLE hJob;
@@ -279,6 +286,38 @@ void GDNShell::clear() {
     clear_history();
 }
 
+struct disassembler *ds;
+Array GDNShell::disassemble(PoolByteArray bytes) {
+    Array a;
+    ds = ds_init(X86_ARCH, MODE_64B);
+
+    unsigned char *bytes_s;
+    bytes_s = (unsigned char*)bytes.read().ptr();
+    ds_decode(ds, bytes_s, bytes.size(), 0x0);
+//    unsigned char bytes_s[] =  "\x55\x48\x89\xe5\xb8\x00\x00\x00\x00\xc3";
+//    ds_decode(ds, bytes_s, sizeof(bytes_s) - 1, 0x0);
+    struct dis *cur = NULL;
+    for (int i = 0; i < ds->num_instr; i++) {
+        cur = ds->instr[i];
+        Array instr;
+        instr.push_back(cur->address);
+        instr.push_back(cur->mnemonic);
+        instr.push_back(cur->op_squash);
+        //
+        instr.push_back(cur->used_bytes);
+        instr.push_back(cur->num_operands);
+        instr.push_back(cur->id);
+        Array group;
+        for (int j = 0; j < 10; j++)
+            group.push_back(cur->group[j]);
+        instr.push_back(group);
+        a.push_back(instr);
+    }
+
+    ds_destroy(ds);
+    return a;
+}
+
 void GDNShell::_init() {
     // initialize any variables here
     time_passed = 0.0;
@@ -304,6 +343,8 @@ void GDNShell::_register_methods() {
     register_method("get_all_text", &GDNShell::get_all_text);
     register_method("clear", &GDNShell::clear);
 
+    register_method("disassemble", &GDNShell::disassemble);
+
 //    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);
 //    register_property<GDNShell, String>("APP_NAME", &GDNShell::APP_NAME, "Console");
 //    register_property<GDNShell, Array>("LOG", &GDNShell::LOG, Array());
@@ -317,8 +358,8 @@ void GDNShell::_register_methods() {
 /////////////
 
 void process_cleanup() {
-    CloseHandle(hJob);
     std::cerr << "Cleaning up..." << std::endl;
+    CloseHandle(hJob);
 }
 void process_exit() {
     process_cleanup();

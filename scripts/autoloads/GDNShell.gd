@@ -74,8 +74,6 @@ func stop():
 	if shell_thread.is_active():
 		shell_thread.wait_to_finish()
 		is_stopping = false
-#	else:
-#		Log.generic(self, "No process is running!")
 
 var is_paused = false
 func pause():
@@ -101,6 +99,11 @@ func step_back():
 	Log.generic(self, "Stepped back 1 line")
 	pass # todo
 
+func disassemble(bytes : PoolByteArray):
+	var disas = GDNSHELL.disassemble(bytes)
+#	for instr in disas:
+#		print(str("   ",instr[0],": ",instr[1], instr[2]))
+	return disas
 
 var SYNC_MODE = 0
 func get_text(line, size):

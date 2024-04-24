@@ -578,9 +578,10 @@ func update_asm_view():
 	ASM.clear()
 	ASM.create_item()
 	ASM.set_column_min_width(0,13) # address
-	ASM.set_column_min_width(1,30) # bytes
-	ASM.set_column_min_width(2,40) # opcodes
-	ASM.set_column_min_width(3,25) # ??
+	ASM.set_column_min_width(1,34) # bytes
+	ASM.set_column_min_width(2,40) # opcode (mnemonics)
+	ASM.set_column_min_width(3,20) # operands
+#	ASM.set_column_min_width(4,10) # ??
 	if PE.file != null:
 		var num_lines = asm_panel_visible_lines()
 		var slider_scroll = (ASM_SLIDER.max_value - ASM_SLIDER.value)
@@ -603,32 +604,42 @@ func update_asm_view():
 			var asm_instr = disas[i]
 			
 			var tree_item = ASM.create_item()
-			var byte_offset = start_offset + asm_instr.offset
-			var raw_bytes = (buf as Array).slice(asm_instr.offset, asm_instr.offset + asm_instr.used_bytes - 1)
-			if asm_instr.mnemonic == "ret":
-				pass
+			var address = start_offset + asm_instr.offset
 			
+			# raw hex bytes
 			var hex_bytes = ""
-			for b in raw_bytes:
-				hex_bytes += "%02X " % [b]
+			for b in range(0, asm_instr.hex.length(), 2):
+				hex_bytes += asm_instr.hex.substr(b, 2).to_upper() + " "
 			
-			tree_item.set_metadata(0, byte_offset)
+			
+			tree_item.set_metadata(0, [address, address + asm_instr.size, asm_instr.size])
+			tree_item.set_metadata(2, [asm_instr.mnemonic, asm_instr.operands])
+			
 			match ASM.get_column_title(0):
 				"VA":
-					var rva = PE.offset_to_RVA(byte_offset)
+					var rva = PE.offset_to_RVA(address)
 					if rva == null:
-						rva = byte_offset
+						rva = address
 					tree_item.set_text(0, "%08X" % [PE.get_image_base() + rva])
 				"RVA":
-					var rva = PE.offset_to_RVA(byte_offset)
+					var rva = PE.offset_to_RVA(address)
 					if rva == null:
-						rva = byte_offset
+						rva = address
 					tree_item.set_text(0, "%08X" % [rva])
 				"Raw":
-					tree_item.set_text(0, "%08X" % [byte_offset])
-			tree_item.set_text(1, "%s" % hex_bytes)
-			tree_item.set_text(2, "%s %s" % [asm_instr.mnemonic, asm_instr.op_squash])
+					tree_item.set_text(0, "%08X" % [address])
+			
+			
+			tree_item.set_cell_mode(2,TreeItem.CELL_MODE_CUSTOM)
+			tree_item.set_custom_draw(2, self, "_custom_asm_opcodes_draw")		
+			
+			tree_item.set_text(1, hex_bytes)
+#			tree_item.set_text(2, asm_instr.mnemonic)
+#			tree_item.set_text(3, asm_instr.operands)
 			tree_item.set_custom_color(0, Color(1,1,1,0.3))
+			
+#			if asm_instr.mnemonic.to_upper() == "RET":
+#				return
 func _on_VSlider_asm_scrolled():
 	update_asm_view()
 func _on_Disassembler_column_title_pressed(column):
@@ -640,9 +651,52 @@ func _on_Disassembler_column_title_pressed(column):
 		}
 		ASM.set_column_title(0, next[ASM.get_column_title(0)])
 	update_asm_view()
-func _on_Disassembler_cell_selected():
+func _on_Disassembler_item_selected():
 	var selection = ASM.get_selected()
 	var metadata = selection.get_metadata(0)
+	hex_scroll_to(metadata[0], metadata[1]) 
+
+# text drawing related stuff
+onready var mono_font : Font = load("res://fonts/basis33.tres")
+func draw_multicolored_string(parent : Control, text_array : Array, colors_array : Array, position : Vector2):
+	var spacing = 0
+	for i in text_array.size():
+		var color = Color(1,1,1)
+		if i < colors_array.size():
+			color = colors_array[i]
+		var text = text_array[i]
+		parent.draw_string(mono_font, position + Vector2(spacing, 0), text, color)
+		spacing += mono_font.get_string_size(text).x
+func _custom_asm_opcodes_draw(tree_item : TreeItem, rect : Rect2):
+	var metadata = tree_item.get_metadata(2)
+	
+	var mn_color = Color(1,1,1,0.6)
+	match metadata[0]:
+		"RET":
+			mn_color = Color(1,1,0,0.8)
+		"CALL":
+			mn_color = Color(0.3,1,1,0.8)
+	
+	if metadata[1] == "":
+		ASM.draw_string(mono_font, rect.position + Vector2(0, 9), metadata[0], mn_color)
+	else:
+		var final_array_text = [metadata[0] + " "]
+		var final_array_colors = [mn_color]
+		
+		var ops_split = metadata[1].split(", ")
+		for o in ops_split.size():
+			var op = ops_split[o]
+			final_array_text.push_back(op)
+			
+			final_array_colors.push_back(Color(1,1,1,0.3))
+#			final_array_colors.push_back(Color(1,0.8,0.5,0.5))
+			
+			# add comma
+			if o < ops_split.size() - 1:
+				final_array_text.push_back(", ")
+				final_array_colors.push_back(Color(1,1,1,0.3))
+			
+		draw_multicolored_string(ASM, final_array_text, final_array_colors, rect.position + Vector2(0, 9))
 
 ############
 
@@ -824,5 +878,4 @@ func _on_BtnAddr_pressed():
 	$GoToDialog/LineEdit.grab_focus()
 	$GoToDialog/LineEdit.select(2,-1)
 	$GoToDialog/LineEdit.caret_position = 999999
-
 

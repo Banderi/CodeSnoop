@@ -8,13 +8,6 @@
 #include "RichTextLabel.hpp"
 #include "TextHistory"
 
-#include "dynzasm/disas.h"
-#include "dss.h"
-
-extern "C" void ds_decode(disassembler*, unsigned char*, int, unsigned long long);
-extern "C" struct disassembler *ds_init(int isa, int mode);
-extern "C" void ds_destroy(struct disassembler *ds);
-
 using namespace godot;
 
 HANDLE hJob;
@@ -286,37 +279,41 @@ void GDNShell::clear() {
     clear_history();
 }
 
-struct disassembler *ds;
-Array GDNShell::disassemble(PoolByteArray bytes) {
+#include "distorm.h"
+#define MAX_INSTRUCTIONS 3200
+Array GDNShell::disassemble(PoolByteArray bytes, int bitformat) {
     // convert PoolByteArray into a raw byte (char) array that stupid piece of garbage C can parse >:(
     unsigned char *bytes_s;
     bytes_s = (unsigned char*)bytes.read().ptr();
 
-    // init the Dynzasm API and attempt parsing!
-    ds = ds_init(X86_ARCH, MODE_64B);
-    ds_decode(ds, bytes_s, bytes.size(), 0x0);
+    // decompile!
+    _OffsetType offset = 0;
+    _DecodedInst decoded[MAX_INSTRUCTIONS];
+    unsigned int num_instr = 0;
+    _DecodeResult r = distorm_decode(offset,
+                                     bytes_s,
+                                     bytes.size(),
+                                     (_DecodeType)bitformat,
+                                     decoded,
+                                     MAX_INSTRUCTIONS,
+                                     &num_instr);
 
     // fit results into a Godot array of dictionaries
     Array a;
-    struct dis *cur = NULL;
-    for (int i = 0; i < ds->num_instr; i++) {
-        cur = ds->instr[i];
+    if (r == DECRES_INPUTERR)
+        return a;
+    _DecodedInst *cur = nullptr;
+    for (int i = 0; i < num_instr; i++) {
+        cur = &decoded[i];
         Dictionary instr;
-        instr["offset"] = cur->address;
-        instr["mnemonic"] = cur->mnemonic;
-        instr["op_squash"] = cur->op_squash;
-        instr["used_bytes"] = cur->used_bytes;
-        instr["num_operands"] = cur->num_operands;
-        instr["id"] = cur->id;
-        Array group;
-        for (int j = 0; j < 10; j++)
-            group.push_back(cur->group[j]);
-        instr["group"] = group;
+        instr["offset"] = cur->offset;
+        instr["mnemonic"] = (char*)cur->mnemonic.p;
+        instr["operands"] = (char*)cur->operands.p;
+        instr["size"] = cur->size;
+        instr["hex"] = (char*)cur->instructionHex.p;
         a.push_back(instr);
     }
 
-    // clean up Dynzasm! (very important???)
-    ds_destroy(ds);
     return a;
 }
 

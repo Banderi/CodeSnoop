@@ -31,7 +31,7 @@ namespace godot {
         String get_all_text();
         void clear();
 
-        Array disassemble(PoolByteArray bytes);
+        Array disassemble(PoolByteArray bytes, int bitformat = 1);
 
         void _init(); // our initializer called by Godot
 

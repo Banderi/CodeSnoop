@@ -100,9 +100,7 @@ func step_back():
 	pass # todo
 
 func disassemble(bytes : PoolByteArray):
-	var disas = GDNSHELL.disassemble(bytes)
-#	for instr in disas:
-#		print(str("   ",instr[0],": ",instr[1], instr[2]))
+	var disas = GDNSHELL.disassemble(bytes, 2 if PE.is_PE32_64() else 1)
 	return disas
 
 var SYNC_MODE = 0

@@ -8,32 +8,18 @@ set(GODOT_HEADER_INCLUDES
     ${PROJECT_SOURCE_DIR}/godot-cpp/include
     ${PROJECT_SOURCE_DIR}/godot-cpp/include/core
     ${PROJECT_SOURCE_DIR}/godot-cpp/include/gen
-    ${PROJECT_SOURCE_DIR}/dynzasm
-    )
 
-#FILE(GLOB DyzasmSrc dynzasm/*.c)
-FILE(GLOB Dyzasm_arm dynzasm/arch/arm/*.c)
-FILE(GLOB Dyzasm_mips dynzasm/arch/mips/*.c)
-FILE(GLOB Dyzasm_x86 dynzasm/arch/x86/*.c)
+    ${PROJECT_SOURCE_DIR}/distorm
+    ${PROJECT_SOURCE_DIR}/distorm/include)
+
+FILE(GLOB DISTORM_SOURCE_FILES ${PROJECT_SOURCE_DIR}/distorm/*.c)
+
 set(SOURCE_FILES
-    dynzasm/common/file.c
-    dynzasm/common/table.c
-    dynzasm/common/trie.c
-#    dynzasm/gen/gen.c
-    ${Dyzasm_arm}
-    ${Dyzasm_mips}
-    ${Dyzasm_x86}
-#    ${DyzasmSrc}
-    dynzasm/lex.c
-    dynzasm/sym.c
-    dynzasm/dis.c
-    dynzasm/dss.c
-    dynzasm/disas.c
+    ${DISTORM_SOURCE_FILES}
 
     library.cpp
     gdlibrary.cpp
-    TextHistory.cpp
-    )
+    TextHistory.cpp)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
 

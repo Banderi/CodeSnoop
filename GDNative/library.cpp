@@ -288,32 +288,34 @@ void GDNShell::clear() {
 
 struct disassembler *ds;
 Array GDNShell::disassemble(PoolByteArray bytes) {
-    Array a;
-    ds = ds_init(X86_ARCH, MODE_64B);
-
+    // convert PoolByteArray into a raw byte (char) array that stupid piece of garbage C can parse >:(
     unsigned char *bytes_s;
     bytes_s = (unsigned char*)bytes.read().ptr();
+
+    // init the Dynzasm API and attempt parsing!
+    ds = ds_init(X86_ARCH, MODE_64B);
     ds_decode(ds, bytes_s, bytes.size(), 0x0);
-//    unsigned char bytes_s[] =  "\x55\x48\x89\xe5\xb8\x00\x00\x00\x00\xc3";
-//    ds_decode(ds, bytes_s, sizeof(bytes_s) - 1, 0x0);
+
+    // fit results into a Godot array of dictionaries
+    Array a;
     struct dis *cur = NULL;
     for (int i = 0; i < ds->num_instr; i++) {
         cur = ds->instr[i];
-        Array instr;
-        instr.push_back(cur->address);
-        instr.push_back(cur->mnemonic);
-        instr.push_back(cur->op_squash);
-        //
-        instr.push_back(cur->used_bytes);
-        instr.push_back(cur->num_operands);
-        instr.push_back(cur->id);
+        Dictionary instr;
+        instr["offset"] = cur->address;
+        instr["mnemonic"] = cur->mnemonic;
+        instr["op_squash"] = cur->op_squash;
+        instr["used_bytes"] = cur->used_bytes;
+        instr["num_operands"] = cur->num_operands;
+        instr["id"] = cur->id;
         Array group;
         for (int j = 0; j < 10; j++)
             group.push_back(cur->group[j]);
-        instr.push_back(group);
+        instr["group"] = group;
         a.push_back(instr);
     }
 
+    // clean up Dynzasm! (very important???)
     ds_destroy(ds);
     return a;
 }

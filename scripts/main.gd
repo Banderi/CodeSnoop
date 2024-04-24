@@ -577,33 +577,42 @@ func update_asm_scrollbar_size():
 func update_asm_view():
 	ASM.clear()
 	ASM.create_item()
-	ASM.set_column_min_width(0,13)
-	ASM.set_column_min_width(1,25)
-	ASM.set_column_min_width(2,25)
-	ASM.set_column_min_width(3,45)
+	ASM.set_column_min_width(0,13) # address
+	ASM.set_column_min_width(1,30) # bytes
+	ASM.set_column_min_width(2,40) # opcodes
+	ASM.set_column_min_width(3,25) # ??
 	if PE.file != null:
 		var num_lines = asm_panel_visible_lines()
-		var top_offset = (ASM_SLIDER.max_value - ASM_SLIDER.value)
-		var bottom_offset = top_offset + num_lines
+		var slider_scroll = (ASM_SLIDER.max_value - ASM_SLIDER.value)
+		
+		# for now, just display the first (entry point) function
+		var start_offset = PE.RVA_to_file_offset(PE.get_image_entry())
+		var end_offset = start_offset + num_lines
 		
 		# disassemble!!!
-		var read_from = max(top_offset - 100, 0)
-		var read_to = min(bottom_offset + 100, PE.file.get_len())
+		var read_from = max(start_offset, 0)
+		var read_to = min(end_offset + 1000, PE.file.get_len())
 		PE.file.seek(read_from)
 		var buf = PE.file.get_buffer(read_to - read_from)
 		var disas = GDNShell.disassemble(buf)
-		for l in num_lines:
-			var tree_item = ASM.create_item()
-#			var curr_line = l + top_line
-			var asm_instr = disas[l]
-			var byte_offset = asm_instr[0] + top_offset
+		
+		for line in num_lines:
+			var i = line + slider_scroll
+			if i < 0 || i > disas.size() - 1:
+				continue
+			var asm_instr = disas[i]
 			
-			PE.file.seek(byte_offset)
-			var raw_bytes = PE.file.get_buffer(asm_instr[3])
+			var tree_item = ASM.create_item()
+			var byte_offset = start_offset + asm_instr.offset
+			var raw_bytes = (buf as Array).slice(asm_instr.offset, asm_instr.offset + asm_instr.used_bytes - 1)
+			if asm_instr.mnemonic == "ret":
+				pass
+			
 			var hex_bytes = ""
 			for b in raw_bytes:
 				hex_bytes += "%02X " % [b]
 			
+			tree_item.set_metadata(0, byte_offset)
 			match ASM.get_column_title(0):
 				"VA":
 					var rva = PE.offset_to_RVA(byte_offset)
@@ -618,7 +627,7 @@ func update_asm_view():
 				"Raw":
 					tree_item.set_text(0, "%08X" % [byte_offset])
 			tree_item.set_text(1, "%s" % hex_bytes)
-			tree_item.set_text(2, "%s %s" % [asm_instr[1], asm_instr[2]])
+			tree_item.set_text(2, "%s %s" % [asm_instr.mnemonic, asm_instr.op_squash])
 			tree_item.set_custom_color(0, Color(1,1,1,0.3))
 func _on_VSlider_asm_scrolled():
 	update_asm_view()
@@ -631,6 +640,9 @@ func _on_Disassembler_column_title_pressed(column):
 		}
 		ASM.set_column_title(0, next[ASM.get_column_title(0)])
 	update_asm_view()
+func _on_Disassembler_cell_selected():
+	var selection = ASM.get_selected()
+	var metadata = selection.get_metadata(0)
 
 ############
 
@@ -812,4 +824,5 @@ func _on_BtnAddr_pressed():
 	$GoToDialog/LineEdit.grab_focus()
 	$GoToDialog/LineEdit.select(2,-1)
 	$GoToDialog/LineEdit.caret_position = 999999
+
 

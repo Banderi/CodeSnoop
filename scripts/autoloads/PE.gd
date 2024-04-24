@@ -594,6 +594,10 @@ func get_image_base():
 	if file != null:
 		return asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.ImageBase.value
 	return null
+func get_image_entry():
+	if file != null:
+		return asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint.value
+	return null
 func offset_to_section(offset):
 	if file == null || offset == null:
 		return null

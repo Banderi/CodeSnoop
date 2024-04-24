@@ -299,6 +299,7 @@ columns = 4
 column_titles_visible = true
 hide_folding = true
 hide_root = true
+select_mode = 1
 
 [node name="VSlider" type="VSlider" parent="VSplitContainer/Main/Middle/Code/ASM"]
 anchor_left = 1.0
@@ -768,6 +769,7 @@ caret_blink = true
 [connection signal="toggled" from="VSplitContainer/Main/Hex/Info/AsciiMode" to="." method="_on_AsciiMode_toggled"]
 [connection signal="cell_selected" from="VSplitContainer/Main/Middle/Chunks/List" to="." method="_on_ChunkTable_cell_selected"]
 [connection signal="item_activated" from="VSplitContainer/Main/Middle/Chunks/List" to="." method="_on_ChunkTable_item_activated"]
+[connection signal="cell_selected" from="VSplitContainer/Main/Middle/Code/ASM/Disassembler" to="." method="_on_Disassembler_cell_selected"]
 [connection signal="column_title_pressed" from="VSplitContainer/Main/Middle/Code/ASM/Disassembler" to="." method="_on_Disassembler_column_title_pressed"]
 [connection signal="scrolled" from="VSplitContainer/Main/Middle/Code/ASM/VSlider" to="." method="_on_VSlider_asm_scrolled"]
 [connection signal="value_changed" from="VSplitContainer/Main/Middle/Code/ASM/VSlider" to="VSplitContainer/Main/Middle/Code/ASM/VSlider" method="_on_VSlider_value_changed"]

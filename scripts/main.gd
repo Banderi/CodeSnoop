@@ -238,9 +238,9 @@ func _on_ChunkTable_item_activated():
 					hex_scroll_to(file_offset, file_offset + 4)
 
 # imports / exports / data directories / etc. tables
-onready var EXPORTS_TABLE = $VSplitContainer/Main/TabContainer/Exports
-onready var IMPORTS_TABLE = $VSplitContainer/Main/TabContainer/Imports
-onready var BUTTON_IAT_MODE = $VSplitContainer/Main/TabContainer/Imports/IATMode
+onready var IMPORTS_TABLE = $VSplitContainer/Main/TabContainer/Externals/VSplitContainer/Imports
+onready var EXPORTS_TABLE = $VSplitContainer/Main/TabContainer/Externals/VSplitContainer/Exports
+onready var BUTTON_IAT_MODE = $VSplitContainer/Main/TabContainer/Externals/VSplitContainer/Imports/IATMode
 onready var INFO_PANEL = $VSplitContainer/Main/TabContainer/Info
 func fill_ImportExportEtcTables():
 	# imports
@@ -254,7 +254,7 @@ func fill_ImportExportEtcTables():
 			var parent_item = null
 			if !dll_names_tree_items.has(dll_name):
 				parent_item = IMPORTS_TABLE.create_item()
-#				parent_item.collapsed = true
+				parent_item.collapsed = true
 				dll_names_tree_items[dll_name] = parent_item
 			else:
 				parent_item = dll_names_tree_items[dll_name]
@@ -262,11 +262,9 @@ func fill_ImportExportEtcTables():
 			var num_imports_in_parent = 0
 			var table_name = "IAT" if BUTTON_IAT_MODE.pressed else "ILT"
 			for thunk_fn_name in PE.IMPORT_TABLES.ILT.formatted[dll_name]:
-#				var raw = PE.get_import_thunk(table_name, dll_name, thunk_fn_name, false)
 				var formatted = PE.get_import_thunk(table_name, dll_name, thunk_fn_name, true)
 				var item = IMPORTS_TABLE.create_item(parent_item)
 				IMPORTS_TABLE.set_column_min_width(0, 4)
-#				IMPORTS_TABLE.set_column_min_width(1, 1)
 				if formatted.is_ordinal:
 					item.set_custom_color(0, Color(0.8,0.8,0))
 					item.set_text(0, str(formatted.ordinal))
@@ -281,6 +279,7 @@ func fill_ImportExportEtcTables():
 	EXPORTS_TABLE.create_item()
 	if PE.EXPORT_TABLES.EXPORT.offset != -1 && PE.EXPORT_TABLES.EXPORT.raw_chunks.size() != 0:
 		var parent_item = EXPORTS_TABLE.create_item()
+#		parent_item.collapsed = true
 		var num_exports_in_parent = 0
 		for export_name in PE.EXPORT_TABLES.NPT.raw_chunks:
 			var item = EXPORTS_TABLE.create_item(parent_item)
@@ -310,9 +309,9 @@ func update_middle_panel_height():
 	if middle_height != MIDDLE.rect_size.y:
 		middle_height = MIDDLE.rect_size.y
 		update_hex_scrollbar_size()
-		update_hex_view()
 		update_asm_scrollbar_size()
-		update_asm_view()
+	update_hex_view()
+	update_asm_view()
 func _on_VSplitContainer_dragged(_offset):
 	update_middle_panel_height()
 
@@ -553,6 +552,7 @@ func _on_AsciiMode_toggled(button_pressed):
 # asm / disassembler
 onready var ASM = $VSplitContainer/Main/Middle/Code/ASM/Disassembler
 onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/ASM/VSlider
+var selected_asm_address = null
 func asm_panel_visible_lines():
 	return floor((ASM.rect_size.y) / (14 + ASM.get("custom_constants/vseparation")) - 4)
 func update_asm_scrollbar_size():
@@ -575,13 +575,15 @@ func update_asm_scrollbar_size():
 		ASM_SLIDER.value = ASM_SLIDER.max_value
 		ASM_SLIDER.editable = false
 func update_asm_view():
+	
+	# reset table
 	ASM.clear()
 	ASM.create_item()
-	ASM.set_column_min_width(0,13) # address
-	ASM.set_column_min_width(1,34) # bytes
-	ASM.set_column_min_width(2,40) # opcode (mnemonics)
-	ASM.set_column_min_width(3,20) # operands
-#	ASM.set_column_min_width(4,10) # ??
+	ASM.set_column_min_width(0,10) # address
+	ASM.set_column_min_width(1,25) # labels
+	ASM.set_column_min_width(2,80) # opcode (mnemonics) + operands
+#	ASM.set_column_min_width(3,10) # ??
+
 	if PE.file != null:
 		var num_lines = asm_panel_visible_lines()
 		var slider_scroll = (ASM_SLIDER.max_value - ASM_SLIDER.value)
@@ -613,7 +615,10 @@ func update_asm_view():
 			
 			
 			tree_item.set_metadata(0, [address, address + asm_instr.size, asm_instr.size])
+#			tree_item.set_metadata(1, hex_bytes)
 			tree_item.set_metadata(2, [asm_instr.mnemonic, asm_instr.operands])
+			if selected_asm_address != null && address == selected_asm_address:
+				tree_item.select(0)
 			
 			match ASM.get_column_title(0):
 				"VA":
@@ -629,17 +634,16 @@ func update_asm_view():
 				"Raw":
 					tree_item.set_text(0, "%08X" % [address])
 			
-			
-			tree_item.set_cell_mode(2,TreeItem.CELL_MODE_CUSTOM)
-			tree_item.set_custom_draw(2, self, "_custom_asm_opcodes_draw")		
-			
-			tree_item.set_text(1, hex_bytes)
-#			tree_item.set_text(2, asm_instr.mnemonic)
-#			tree_item.set_text(3, asm_instr.operands)
 			tree_item.set_custom_color(0, Color(1,1,1,0.3))
+			tree_item.set_text_align(0, TreeItem.ALIGN_RIGHT)
+			tree_item.set_text_align(1, TreeItem.ALIGN_RIGHT)
+			tree_item.set_cell_mode(2,TreeItem.CELL_MODE_CUSTOM)
+			tree_item.set_custom_draw(2, self, "_custom_asm_opcodes_draw")
+			
 			
 #			if asm_instr.mnemonic.to_upper() == "RET":
 #				return
+		
 func _on_VSlider_asm_scrolled():
 	update_asm_view()
 func _on_Disassembler_column_title_pressed(column):
@@ -652,9 +656,17 @@ func _on_Disassembler_column_title_pressed(column):
 		ASM.set_column_title(0, next[ASM.get_column_title(0)])
 	update_asm_view()
 func _on_Disassembler_item_selected():
+	if Input.is_action_pressed("ctrl"):
+		return _on_Disassembler_item_activated()
 	var selection = ASM.get_selected()
 	var metadata = selection.get_metadata(0)
-	hex_scroll_to(metadata[0], metadata[1]) 
+	hex_scroll_to(metadata[0], metadata[1])
+	selected_asm_address = selection.get_metadata(0)[0]
+func _on_Disassembler_item_activated():
+	var selection = ASM.get_selected()
+	var metadata = selection.get_metadata(2)
+	if metadata[0] == "CALL":
+		pass
 
 # text drawing related stuff
 onready var mono_font : Font = load("res://fonts/basis33.tres")
@@ -667,6 +679,14 @@ func draw_multicolored_string(parent : Control, text_array : Array, colors_array
 		var text = text_array[i]
 		parent.draw_string(mono_font, position + Vector2(spacing, 0), text, color)
 		spacing += mono_font.get_string_size(text).x
+func _custom_asm_bytes_draw(tree_item : TreeItem, rect : Rect2):
+	var bytes = tree_item.get_metadata(1)
+	bytes = bytes.strip_edges()
+	while mono_font.get_string_size(bytes).x > rect.size.x:
+		bytes = bytes.substr(0, bytes.length() - 4) + "..."
+		if bytes == "...":
+			break
+	ASM.draw_string(mono_font, rect.position + Vector2(0, 9), bytes, Color(1,1,1,0.6))
 func _custom_asm_opcodes_draw(tree_item : TreeItem, rect : Rect2):
 	var metadata = tree_item.get_metadata(2)
 	
@@ -688,10 +708,15 @@ func _custom_asm_opcodes_draw(tree_item : TreeItem, rect : Rect2):
 			var op = ops_split[o]
 			final_array_text.push_back(op)
 			
-			final_array_colors.push_back(Color(1,1,1,0.3))
+			if "[" in op:
+				final_array_colors.push_back(Color(0.3,1,1,0.5))
+			elif "x" in op:
+				final_array_colors.push_back(Color(0.8,1,0.5,0.5))
+			else:
+				final_array_colors.push_back(Color(1,1,1,0.3))
 #			final_array_colors.push_back(Color(1,0.8,0.5,0.5))
 			
-			# add comma
+			# add back comma
 			if o < ops_split.size() - 1:
 				final_array_text.push_back(", ")
 				final_array_colors.push_back(Color(1,1,1,0.3))
@@ -740,10 +765,13 @@ func _ready():
 	HEXVIEW_BYTES.clear_colors()
 	HEXVIEW_BYTES.add_keyword_color("00", Color(1,1,1,0.20)) #"767676" #81ff9200
 	
-	# ASM table columns
+	# table columns
 	ASM.set_column_title(0, "VA")
-	ASM.set_column_title(1, "Bytes")
+	ASM.set_column_title(1, "Symbols")
 	ASM.set_column_title(2, "Opcodes")
+	IMPORTS_TABLE.set_column_title(0, "Imports")
+	EXPORTS_TABLE.set_column_title(0, "Exports")
+	
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 onready var CONSOLE_TERMINAL = $VSplitContainer/Footer/Console/Terminal
@@ -824,6 +852,7 @@ func _on_focus_change_intercept(node):
 		close_recent_dropdown()
 
 func _on_viewport_size_changed():
+	yield(get_tree(), "idle_frame") # this is necessary for window events such as maximize/minimize
 	update_middle_panel_height()
 
 func _on_BtnOpen_pressed():
@@ -878,4 +907,5 @@ func _on_BtnAddr_pressed():
 	$GoToDialog/LineEdit.grab_focus()
 	$GoToDialog/LineEdit.select(2,-1)
 	$GoToDialog/LineEdit.caret_position = 999999
+
 

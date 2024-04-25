@@ -3,6 +3,8 @@ extends VSlider
 signal scrolled
 
 func _input(_event):
+	if !editable:
+		return
 	var parent = get_parent()
 	var parent_rect = Rect2(Vector2(), parent.rect_size + Vector2(-20,0))
 	if parent_rect.has_point(parent.get_local_mouse_position()):

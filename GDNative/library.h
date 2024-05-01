@@ -3,6 +3,7 @@
 
 #include <Godot.hpp>
 #include <Node.hpp>
+#include <File.hpp>
 
 
 namespace godot {
@@ -31,7 +32,8 @@ namespace godot {
         String get_all_text();
         void clear();
 
-        Array disassemble(PoolByteArray bytes, int bitformat = 1);
+        Array disassemble(PoolByteArray bytes, int bit_format, unsigned int address);
+        Dictionary analyze(PoolByteArray bytes, int bit_format, unsigned int section_rva, unsigned int entry_rva);
 
         void _init(); // our initializer called by Godot
 

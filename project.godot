@@ -44,9 +44,10 @@ IO="*res://scripts/autoloads/IO.gd"
 Cursor="*res://scripts/autoloads/Cursor.gd"
 Debugger="*res://scripts/autoloads/Debugger.gd"
 Shell="*res://scripts/autoloads/Shell.gd"
-GDNShell="*res://scripts/autoloads/GDNShell.gd"
+GDN="*res://scripts/autoloads/GDN.gd"
 DataStruct="*res://scripts/autoloads/DataStruct.gd"
 PE="*res://scripts/autoloads/PE.gd"
+Stopwatch="*res://scripts/autoloads/Stopwatch.gd"
 
 [display]
 

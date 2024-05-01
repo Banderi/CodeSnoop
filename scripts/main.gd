@@ -85,9 +85,14 @@ func _on_BtnRecentFile_pressed(path):
 # BINARY FILE
 onready var OPEN_DIALOG = $OpenDialog
 func PE_open(path):
+	var CLOCK = Stopwatch.start()
 	if !PE.open_file(path):
 		remove_from_recent(path)
 	else:
+		Stopwatch.stop(CLOCK, "Read PE file chunks!")
+		
+		PE.analyze_file()
+		
 		# hex view
 		byte_selection = []
 		update_hex_scrollbar_size()
@@ -112,7 +117,7 @@ onready var CHUNKS_DATA = $VSplitContainer/Main/Middle/Chunks/Data
 func fill_ChunkTable():
 	CHUNKS_LIST.clear()
 	var root = CHUNKS_LIST.create_item()
-	root.set_text(0, IO.get_file_name(GDNShell.shell_cmd))
+	root.set_text(0, IO.get_file_name(GDN.shell_cmd))
 	recursive_fill_ChunkTable(PE.asm_chunks, null, null)
 func recursive_is_item_encrypted(item):
 	if DataStruct.is_valid(item):
@@ -238,9 +243,12 @@ func _on_ChunkTable_item_activated():
 					hex_scroll_to(file_offset, file_offset + 4)
 
 # imports / exports / data directories / etc. tables
-onready var IMPORTS_TABLE = $VSplitContainer/Main/TabContainer/Externals/VSplitContainer/Imports
-onready var EXPORTS_TABLE = $VSplitContainer/Main/TabContainer/Externals/VSplitContainer/Exports
-onready var BUTTON_IAT_MODE = $VSplitContainer/Main/TabContainer/Externals/VSplitContainer/Imports/IATMode
+onready var IMPORTS_TABLE = $VSplitContainer/Main/TabContainer/Externals/Imports
+onready var EXPORTS_TABLE = $VSplitContainer/Main/TabContainer/Externals/Exports
+onready var BUTTON_IAT_MODE = $VSplitContainer/Main/TabContainer/Externals/Imports/IATMode
+onready var FUNCS_TABLE = $VSplitContainer/Main/TabContainer/Symbols/Functions
+onready var LABELS_TABLE = $VSplitContainer/Main/TabContainer/Symbols/Labels
+onready var COFF_SYMBOLS_TABLE = $VSplitContainer/Main/TabContainer/Symbols/COFF
 onready var INFO_PANEL = $VSplitContainer/Main/TabContainer/Info
 func fill_ImportExportEtcTables():
 	# imports
@@ -264,6 +272,10 @@ func fill_ImportExportEtcTables():
 			for thunk_fn_name in PE.IMPORT_TABLES.ILT.formatted[dll_name]:
 				var formatted = PE.get_import_thunk(table_name, dll_name, thunk_fn_name, true)
 				var item = IMPORTS_TABLE.create_item(parent_item)
+				for key in formatted:
+					var subitem = IMPORTS_TABLE.create_item(item)
+					subitem.set_text(0, "%s: %s" % [key, formatted[key]])
+				item.collapsed = true
 				IMPORTS_TABLE.set_column_min_width(0, 4)
 				if formatted.is_ordinal:
 					item.set_custom_color(0, Color(0.8,0.8,0))
@@ -288,8 +300,21 @@ func fill_ImportExportEtcTables():
 		var name_rva = PE.EXPORT_TABLES.EXPORT.raw_chunks.NameRVA.value
 		var dll_name = PE.file.get_null_terminated_string(PE.RVA_to_file_offset(name_rva))
 		parent_item.set_text(0,"%s (%d)" % [dll_name, num_exports_in_parent])
-func _on_IATMode_toggled(_button_pressed):
-	fill_ImportExportEtcTables()
+	
+	# functions
+	FUNCS_TABLE.clear()
+	FUNCS_TABLE.create_item()
+	for fn_rva in PE.ANALYSIS_FUNCS:
+		var tree_item = FUNCS_TABLE.create_item()
+		tree_item.set_text(0, "FUN_%08X"%[fn_rva])
+		tree_item.set_metadata(0, fn_rva)
+		for call_rva in PE.ANALYSIS_FUNCS[fn_rva].calls:
+			var call_item = FUNCS_TABLE.create_item(tree_item)
+			if call_rva != -1:
+				call_item.set_text(0, "0x%X"%[call_rva])
+			else:
+				call_item.set_text(0, "dynamic call")
+				call_item.set_custom_color(0, Color(0.8,0.8,0))
 func update_info_extra_panels():
 	INFO_PANEL.text = ""
 	if PE.file != null:
@@ -300,6 +325,15 @@ func update_info_extra_panels():
 			DataStruct.as_text(PE.asm_chunks._IMAGE_NT_HEADERS.Signature),
 			DataStruct.as_text(PE.asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.Magic),
 		]
+func _on_IATMode_toggled(_button_pressed):
+	fill_ImportExportEtcTables()
+func _on_Functions_cell_selected():
+	focused_function_rva = null
+	var selection = FUNCS_TABLE.get_selected()
+	var rva = selection.get_metadata(0)
+	if rva != -1:
+		if PE.file != null && rva in PE.ANALYSIS_FUNCS:
+			go_to_function(rva)
 
 ##### CODING / MAIN PANELS
 var middle_height = 0
@@ -553,60 +587,60 @@ func _on_AsciiMode_toggled(button_pressed):
 onready var ASM = $VSplitContainer/Main/Middle/Code/ASM/Disassembler
 onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/ASM/VSlider
 var selected_asm_address = null
+var focused_function_rva = null
 func asm_panel_visible_lines():
 	return floor((ASM.rect_size.y) / (14 + ASM.get("custom_constants/vseparation")) - 4)
 func update_asm_scrollbar_size():
-	if PE.file != null:
+	if PE.file != null && focused_function_rva != null:
 		# remember the previous relative position/scroll percentage
-		var perc = float(ASM_SLIDER.value) / float(ASM_SLIDER.max_value)
+		var perc = 0
+		if ASM_SLIDER.min_value != 0:
+			perc = float(ASM_SLIDER.value) / float(ASM_SLIDER.min_value)
 		ASM_SLIDER.editable = true
-		var lines_count = PE.file.get_len()
-		var line_start = lines_count - asm_panel_visible_lines()
-		ASM_SLIDER.max_value = line_start
-		ASM_SLIDER.max_value = line_start
-		ASM_SLIDER.value = perc * float(ASM_SLIDER.max_value)
+		var lines_count = PE.ANALYSIS_FUNCS[focused_function_rva].icount # this assumes the .size is VALID!
+		ASM_SLIDER.min_value = min(0, -lines_count + asm_panel_visible_lines())
+		ASM_SLIDER.value = perc * float(ASM_SLIDER.min_value)
 		
 		# for some reason, the above... breaks? if the view is all the way at the bottom of the file.
 		# soooo...
-		if ASM_SLIDER.value < ASM_SLIDER.max_value:
-			ASM_SLIDER.value += 1
-			ASM_SLIDER.value -= 1
+#		if ASM_SLIDER.value < ASM_SLIDER.max_value:
+#			ASM_SLIDER.value += 1
+#			ASM_SLIDER.value -= 1
 	else:
-		ASM_SLIDER.value = ASM_SLIDER.max_value
+		ASM_SLIDER.value = 0
 		ASM_SLIDER.editable = false
 func update_asm_view():
 	
 	# reset table
 	ASM.clear()
 	ASM.create_item()
-	ASM.set_column_min_width(0,10) # address
-	ASM.set_column_min_width(1,25) # labels
-	ASM.set_column_min_width(2,80) # opcode (mnemonics) + operands
-#	ASM.set_column_min_width(3,10) # ??
+	ASM.set_column_min_width(0,12) # address
+	ASM.set_column_min_width(1,25) # hex bytes
+	ASM.set_column_min_width(2,25) # labels / symbols
+	ASM.set_column_min_width(3,80) # opcode (mnemonics) + operands
 
-	if PE.file != null:
+	if PE.file != null && focused_function_rva != null:
 		var num_lines = asm_panel_visible_lines()
-		var slider_scroll = (ASM_SLIDER.max_value - ASM_SLIDER.value)
+		var slider_scroll = -ASM_SLIDER.value
 		
 		# for now, just display the first (entry point) function
-		var start_offset = PE.RVA_to_file_offset(PE.get_image_entry())
-		var end_offset = start_offset + num_lines
+		var start_offset = PE.RVA_to_file_offset(focused_function_rva)
+		if start_offset == null:
+			return
 		
-		# disassemble!!!
-		var read_from = max(start_offset, 0)
-		var read_to = min(end_offset + 1000, PE.file.get_len())
-		PE.file.seek(read_from)
-		var buf = PE.file.get_buffer(read_to - read_from)
-		var disas = GDNShell.disassemble(buf)
+		PE.file.seek(start_offset)
+		var buf = PE.file.get_buffer(PE.ANALYSIS_FUNCS[focused_function_rva].size) # this assumes the .size is VALID!
+		var disas = GDN.disassemble(buf, focused_function_rva)
 		
 		for line in num_lines:
 			var i = line + slider_scroll
 			if i < 0 || i > disas.size() - 1:
-				continue
-			var asm_instr = disas[i]
-			
+				continue # cut off at last disassembled/visible line reached
+
 			var tree_item = ASM.create_item()
-			var address = start_offset + asm_instr.offset
+			
+			var asm_instr = disas[i]
+			var address = asm_instr.offset
 			
 			# raw hex bytes
 			var hex_bytes = ""
@@ -614,36 +648,28 @@ func update_asm_view():
 				hex_bytes += asm_instr.hex.substr(b, 2).to_upper() + " "
 			
 			
-			tree_item.set_metadata(0, [address, address + asm_instr.size, asm_instr.size])
-#			tree_item.set_metadata(1, hex_bytes)
-			tree_item.set_metadata(2, [asm_instr.mnemonic, asm_instr.operands])
+			tree_item.set_metadata(0, [PE.RVA_to_file_offset(address), PE.RVA_to_file_offset(address) + asm_instr.size, asm_instr.size, address])
+			tree_item.set_metadata(1, hex_bytes)
+#			tree_item.set_metadata(1, symbols)
+			tree_item.set_metadata(3, [asm_instr.mnemonic, asm_instr.operands])
 			if selected_asm_address != null && address == selected_asm_address:
 				tree_item.select(0)
 			
 			match ASM.get_column_title(0):
 				"VA":
-					var rva = PE.offset_to_RVA(address)
-					if rva == null:
-						rva = address
-					tree_item.set_text(0, "%08X" % [PE.get_image_base() + rva])
+					tree_item.set_text(0, "%08X" % [PE.get_image_base() + address])
 				"RVA":
-					var rva = PE.offset_to_RVA(address)
-					if rva == null:
-						rva = address
-					tree_item.set_text(0, "%08X" % [rva])
-				"Raw":
 					tree_item.set_text(0, "%08X" % [address])
+				"Raw":
+					tree_item.set_text(0, "%08X" % [PE.RVA_to_file_offset(address)])
 			
 			tree_item.set_custom_color(0, Color(1,1,1,0.3))
 			tree_item.set_text_align(0, TreeItem.ALIGN_RIGHT)
-			tree_item.set_text_align(1, TreeItem.ALIGN_RIGHT)
-			tree_item.set_cell_mode(2,TreeItem.CELL_MODE_CUSTOM)
-			tree_item.set_custom_draw(2, self, "_custom_asm_opcodes_draw")
-			
-			
-#			if asm_instr.mnemonic.to_upper() == "RET":
-#				return
-		
+			tree_item.set_cell_mode(1,TreeItem.CELL_MODE_CUSTOM)
+			tree_item.set_custom_draw(1, self, "_custom_asm_bytes_draw")
+			tree_item.set_text_align(2, TreeItem.ALIGN_RIGHT)
+			tree_item.set_cell_mode(3,TreeItem.CELL_MODE_CUSTOM)
+			tree_item.set_custom_draw(3, self, "_custom_asm_opcodes_draw")
 func _on_VSlider_asm_scrolled():
 	update_asm_view()
 func _on_Disassembler_column_title_pressed(column):
@@ -660,14 +686,37 @@ func _on_Disassembler_item_selected():
 		return _on_Disassembler_item_activated()
 	var selection = ASM.get_selected()
 	var metadata = selection.get_metadata(0)
+	if metadata == null:
+		return
 	hex_scroll_to(metadata[0], metadata[1])
 	selected_asm_address = selection.get_metadata(0)[0]
 func _on_Disassembler_item_activated():
 	var selection = ASM.get_selected()
-	var metadata = selection.get_metadata(2)
-	if metadata[0] == "CALL":
-		pass
-
+	var metadata = selection.get_metadata(3)
+	var address = selection.get_metadata(0)
+	var mnemonics = metadata[0]
+	var operands = metadata[1]
+	match mnemonics:
+		"CALL":
+			if operands.begins_with("0x"):
+				go_to_function(operands.hex_to_int())
+		"JMP":
+			var s = operands.split(" ")
+			s = s[s.size()-1]
+			s = s.lstrip("[").rstrip("]").split("+")
+			var rva = 0
+			for l in s:
+				if "0x" in l:
+					rva += l.hex_to_int()
+				elif l == "RIP" || l == "EIP":
+					rva += address[3] + address[2]
+			go_to_function(rva)
+func go_to_function(rva):
+	focused_function_rva = rva
+	ASM_SLIDER.value = 0
+	update_asm_scrollbar_size()
+	update_asm_view()
+	
 # text drawing related stuff
 onready var mono_font : Font = load("res://fonts/basis33.tres")
 func draw_multicolored_string(parent : Control, text_array : Array, colors_array : Array, position : Vector2):
@@ -688,7 +737,8 @@ func _custom_asm_bytes_draw(tree_item : TreeItem, rect : Rect2):
 			break
 	ASM.draw_string(mono_font, rect.position + Vector2(0, 9), bytes, Color(1,1,1,0.6))
 func _custom_asm_opcodes_draw(tree_item : TreeItem, rect : Rect2):
-	var metadata = tree_item.get_metadata(2)
+	var metadata = tree_item.get_metadata(3)
+	tree_item.set_tooltip(3, str(metadata[0], " ", metadata[1]))
 	
 	var mn_color = Color(1,1,1,0.6)
 	match metadata[0]:
@@ -696,6 +746,8 @@ func _custom_asm_opcodes_draw(tree_item : TreeItem, rect : Rect2):
 			mn_color = Color(1,1,0,0.8)
 		"CALL":
 			mn_color = Color(0.3,1,1,0.8)
+		"NOP":
+			mn_color = Color(1,1,1,0.3)
 	
 	if metadata[1] == "":
 		ASM.draw_string(mono_font, rect.position + Vector2(0, 9), metadata[0], mn_color)
@@ -726,37 +778,20 @@ func _custom_asm_opcodes_draw(tree_item : TreeItem, rect : Rect2):
 ############
 
 # bottom-right log window
-var logger_lines = 0
-var logger_autoscroll = true
 onready var LOG_BOX = $VSplitContainer/Footer/LogPrinter/Text
-func log_do_scroll():
-	if Log.LOG_CHANGED:
-		LOG_BOX.bbcode_text = ""
-		logger_lines = Log.LOG_EVERYTHING.size()
-		for l in Log.LOG_EVERYTHING:
-			LOG_BOX.bbcode_text += l + "\n"
-		if logger_autoscroll:
-			LOG_BOX.scroll_to_line(logger_lines - 1)
-		Log.LOG_CHANGED = false
-func clear_log():
-	Log.LOG_EVERYTHING = []
-	Log.LOG_ENGINE = []
-	Log.LOG_ERRORS = []
-	LOG_BOX.bbcode_text = "Log cleared."
-	GDNShell.clear() # also clear the console terminal...?
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	var _r
+	var _r = Log.connect("log_changed", LOG_BOX, "update")
 	_r = load_user_data()
 	_r = get_viewport().connect("gui_focus_changed", self, "_on_focus_change_intercept")
 	_r = get_tree().root.connect("size_changed", self, "_on_viewport_size_changed")
 	Log.generic(null, "Initializing...")
-	GDNShell.root_node = self
-	GDNShell.terminal_node = CONSOLE_TERMINAL
-	GDNShell.GDN_INIT()
+	GDN.root_node = self
+	GDN.terminal_node = CONSOLE_TERMINAL
+	GDN.GDN_INIT()
 	LOG_BOX.bbcode_text = ""
-	GDNShell.clear()
+	GDN.clear()
 	_on_BtnClose_pressed()
 	PE.load_prodid_enums()
 	update_middle_panel_height()
@@ -767,8 +802,9 @@ func _ready():
 	
 	# table columns
 	ASM.set_column_title(0, "VA")
-	ASM.set_column_title(1, "Symbols")
-	ASM.set_column_title(2, "Opcodes")
+	ASM.set_column_title(1, "Bytes")
+	ASM.set_column_title(2, "Symbols")
+	ASM.set_column_title(3, "Opcodes")
 	IMPORTS_TABLE.set_column_title(0, "Imports")
 	EXPORTS_TABLE.set_column_title(0, "Exports")
 	
@@ -787,7 +823,7 @@ onready var BTN_STEP_FORWARD = $Top/Buttons/HBoxContainer/BtnStep
 onready var BTN_VISIBLE_PROGRAM = $Top/Buttons/Control/BtnVisibleProgram
 onready var BTN_CHANGE_ADDR = $VSplitContainer/Main/Hex/Info/Control/Txt/BtnAddr
 func _process(_delta):
-	log_do_scroll()
+#	log_do_scroll()
 	FPS.text = str(Engine.get_frames_per_second(), " FPS")
 	
 	# has file open?
@@ -800,13 +836,13 @@ func _process(_delta):
 		BTN_STOP.disabled = true
 	
 	# has an active child process running?
-	if GDNShell.has_started_process_attached():
+	if GDN.has_started_process_attached():
 		BTN_VISIBLE_PROGRAM.disabled = true
 		BTN_STOP.disabled = false
 		BTN_PAUSE.disabled = false
 		BTN_STEP_BACK.disabled = false
 		BTN_STEP_FORWARD.disabled = false
-		if GDNShell.is_paused: # paused / debugging
+		if GDN.is_paused: # paused / debugging
 			CONSOLE_TERMINAL.readonly = true
 			BTN_STEP_BACK.disabled = false
 			BTN_STEP_FORWARD.disabled = false
@@ -823,18 +859,18 @@ func _process(_delta):
 		BTN_STEP_FORWARD.disabled = true
 	
 	# button text when paused
-	if GDNShell.is_paused:
+	if GDN.is_paused:
 		BTN_PAUSE.text = "Resume"
 	else:
 		BTN_PAUSE.text = "Break"
 
 func _input(_event):
 	if Input.is_action_just_pressed("debug_start"):
-		GDNShell.start()
+		GDN.start()
 	if Input.is_action_just_pressed("debug_stop"):
-		GDNShell.stop()
+		GDN.stop()
 	if Input.is_action_just_pressed("clear_console"):
-		clear_log()
+		LOG_BOX.clear()
 	if Input.is_action_just_pressed("ui_cancel"):
 		if OPEN_DIALOG.visible:
 			OPEN_DIALOG.hide()
@@ -871,25 +907,25 @@ func _on_BtnClose_pressed():
 	IMPORTS_TABLE.clear()
 
 func _on_BtnRun_pressed():
-	GDNShell.start()
+	GDN.start()
 func _on_BtnStop_pressed():
-	GDNShell.stop()
+	GDN.stop()
 
 func _on_BtnBreak_pressed():
-	if GDNShell.is_paused:
-		GDNShell.resume()
+	if GDN.is_paused:
+		GDN.resume()
 	else:
-		GDNShell.pause()
+		GDN.pause()
 func _on_BtnBack_pressed():
-	GDNShell.step_back()
+	GDN.step_back()
 func _on_BtnStep_pressed():
-	GDNShell.step_forward()
+	GDN.step_forward()
 
 func _on_BtnClearLog_pressed():
-	clear_log()
+	LOG_BOX.clear()
 
 func _on_BtnVisibleProgram_toggled(button_pressed):
-	GDNShell.hidden_process_window = !button_pressed
+	GDN.hidden_process_window = !button_pressed
 
 onready var GOTO_DIALOG = $GoToDialog
 func _on_LineEdit_text_entered(new_text):
@@ -907,5 +943,6 @@ func _on_BtnAddr_pressed():
 	$GoToDialog/LineEdit.grab_focus()
 	$GoToDialog/LineEdit.select(2,-1)
 	$GoToDialog/LineEdit.caret_position = 999999
+
 
 

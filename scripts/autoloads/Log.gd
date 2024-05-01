@@ -4,7 +4,7 @@ var LOG_EVERYTHING = []
 var LOG_ENGINE = []
 var LOG_ERRORS = []
 
-var LOG_CHANGED = false
+signal log_changed
 
 const MAX_LINES_IN_CONSOLE = 200
 func limit_array(arr, limit = MAX_LINES_IN_CONSOLE):
@@ -12,11 +12,6 @@ func limit_array(arr, limit = MAX_LINES_IN_CONSOLE):
 		arr.pop_front()
 
 func get_enum_string(enums, value):
-#	var e = value
-#	var keys = enums.keys()
-#	while enums[keys[e]] != value && enums[keys[e]] > value:
-#		e -= 1
-#	return keys[e]
 	for key in enums.keys():
 		if enums[key] == value:
 			return key
@@ -42,7 +37,7 @@ func generic(from, text):
 		LOG_ENGINE.push_back(bb_msg)
 		limit_array(LOG_ENGINE)
 	print(msg)
-	LOG_CHANGED = true
+	emit_signal("log_changed")
 func error(from, err, text, windows_errors = false):
 	var msg = str(get_timestamp(from), "ERROR: ", text)
 	if err != null:
@@ -64,4 +59,4 @@ func error(from, err, text, windows_errors = false):
 		limit_array(LOG_ENGINE)
 	print(msg)
 	push_error(msg)
-	LOG_CHANGED = true
+	emit_signal("log_changed")

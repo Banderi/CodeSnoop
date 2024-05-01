@@ -25,13 +25,13 @@ std::mutex termination_mutex;
 
 /////////////
 
+// console/stdio history lines
 String to_str(int n) {
     return {std::to_string(n).c_str()};
 }
 String to_str(float n) {
     return {std::to_string(n).c_str()};
 }
-
 void simpleDebugPrint(const char *str) {
     std::cout << str << std::endl;
 }
@@ -95,7 +95,62 @@ void clear_history() {
     history_last_fetched_pos = 0;
     history_lines = 0;
 }
+int GDNShell::get_lines_count() {
+    return history_lines;
+}
+String GDNShell::get_text(int _START_LINE, int _END_LINE) {
+    std::lock_guard<std::mutex> guard(buffer_mutex);
+    const int LASTLINE = history_linebreaks.size();
 
+    if (history.size() == 0)
+        return "";
+
+    // if negative, scroll to the bottom
+    if (_START_LINE < 0) {
+        _START_LINE += LASTLINE;
+        _END_LINE += LASTLINE;
+    }
+
+    int s_start;
+    if (_START_LINE >= LASTLINE)
+        return "";
+    else {
+        _START_LINE = Math::clamp(_START_LINE, 0, LASTLINE - 1);
+        s_start = history_linebreaks.at(_START_LINE);
+    }
+
+    int s_end;
+    if (_END_LINE >= LASTLINE)
+        s_end = history.size();
+    else {
+        _END_LINE = Math::clamp(_END_LINE, 0, LASTLINE - 1);
+        s_end = history_linebreaks.at(_END_LINE);
+    }
+
+    s_start = Math::clamp(s_start, 0, int(history.size() - 1));
+    s_end = Math::clamp(s_end, 0, int(history.size() - 1));
+
+    if (_START_LINE != _END_LINE && s_start != s_end)
+        return history.substr(s_start, s_end - s_start).c_str();
+    return "";
+}
+String GDNShell::get_all_text() {
+    std::lock_guard<std::mutex> guard(buffer_mutex);
+    int history_size = history.size();
+    if (history_size != history_last_fetched_pos) {
+        int n = history_size - history_last_fetched_pos;
+        std::string str = history.substr(history_last_fetched_pos, n);
+        auto buf = str.c_str();
+        history_last_fetched_pos = history_size;
+        return buf;
+    }
+    return "";
+}
+void GDNShell::clear() {
+    clear_history();
+}
+
+// child process spawn/kill/management
 int GDNShell::spawn(String path, bool hidden) {
     simpleDebugPrint("--> GDNShell::spawn CALL");
     simpleDebugPrint("GDNShell::spawn 1");
@@ -103,26 +158,24 @@ int GDNShell::spawn(String path, bool hidden) {
     // Clear previous history and buffers
     clear_history();
 
-    // Create pipes for input and output
-    SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
-    if (!CreatePipe(&hOutputRead, &hOutputWrite, &sa, 0) ||
-        !CreatePipe(&hInputRead, &hInputWrite, &sa, 0))
-    {
-        PrintErr("Failed to create pipes.");
-        return GetLastError();
-    }
-
     STARTUPINFO si = { sizeof(STARTUPINFO) };
-    simpleDebugPrint("GDNShell::spawn 2");
 
-    // Redirect input and output
-    si.dwFlags |= STARTF_USESTDHANDLES;
-    si.hStdOutput = hOutputWrite;
-    si.hStdError = hOutputWrite;
-    si.hStdInput = hInputRead;
-
-    // Set the window style to hide the child process window
     if (hidden) {
+        // Create pipes for input and output
+        SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
+        if (!CreatePipe(&hOutputRead, &hOutputWrite, &sa, 0) ||
+            !CreatePipe(&hInputRead, &hInputWrite, &sa, 0))
+        {
+            PrintErr("Failed to create pipes.");
+            return GetLastError();
+        }
+        simpleDebugPrint("GDNShell::spawn 2");
+        si.dwFlags |= STARTF_USESTDHANDLES;
+        si.hStdOutput = hOutputWrite;
+        si.hStdError = hOutputWrite;
+        si.hStdInput = hInputRead;
+
+        // Set the window style to hide the child process window
         si.dwFlags |= STARTF_USESHOWWINDOW;
         si.wShowWindow = SW_HIDE;
     }
@@ -224,73 +277,18 @@ void GDNShell::kill() {
     simpleDebugPrint("<-- GDNShell::kill RET");
 }
 
-int GDNShell::get_lines_count() {
-    return history_lines;
-}
-String GDNShell::get_text(int _START_LINE, int _END_LINE) {
-    std::lock_guard<std::mutex> guard(buffer_mutex);
-    const int LASTLINE = history_linebreaks.size();
-
-    if (history.size() == 0)
-        return "";
-
-    // if negative, scroll to the bottom
-    if (_START_LINE < 0) {
-        _START_LINE += LASTLINE;
-        _END_LINE += LASTLINE;
-    }
-
-    int s_start;
-    if (_START_LINE >= LASTLINE)
-        return "";
-    else {
-        _START_LINE = Math::clamp(_START_LINE, 0, LASTLINE - 1);
-        s_start = history_linebreaks.at(_START_LINE);
-    }
-
-    int s_end;
-    if (_END_LINE >= LASTLINE)
-        s_end = history.size();
-    else {
-        _END_LINE = Math::clamp(_END_LINE, 0, LASTLINE - 1);
-        s_end = history_linebreaks.at(_END_LINE);
-    }
-
-    s_start = Math::clamp(s_start, 0, int(history.size() - 1));
-    s_end = Math::clamp(s_end, 0, int(history.size() - 1));
-
-    if (_START_LINE != _END_LINE && s_start != s_end)
-        return history.substr(s_start, s_end - s_start).c_str();
-    return "";
-}
-String GDNShell::get_all_text() {
-    std::lock_guard<std::mutex> guard(buffer_mutex);
-    int history_size = history.size();
-    if (history_size != history_last_fetched_pos) {
-        int n = history_size - history_last_fetched_pos;
-        std::string str = history.substr(history_last_fetched_pos, n);
-        auto buf = str.c_str();
-        history_last_fetched_pos = history_size;
-        return buf;
-    }
-    return "";
-}
-void GDNShell::clear() {
-    clear_history();
-}
-
+// disassembler
 #include "distorm.h"
 #define MAX_INSTRUCTIONS 3200
-Array GDNShell::disassemble(PoolByteArray bytes, int bitformat) {
+Array GDNShell::disassemble(PoolByteArray bytes, int bitformat, unsigned int address) {
     // convert PoolByteArray into a raw byte (char) array that stupid piece of garbage C can parse >:(
-    unsigned char *bytes_s;
-    bytes_s = (unsigned char*)bytes.read().ptr();
+    uint8_t *bytes_s;
+    bytes_s = (uint8_t*)bytes.read().ptr();
 
     // decompile!
-    _OffsetType offset = 0;
     _DecodedInst decoded[MAX_INSTRUCTIONS];
     unsigned int num_instr = 0;
-    _DecodeResult r = distorm_decode(offset,
+    _DecodeResult r = distorm_decode(address,
                                      bytes_s,
                                      bytes.size(),
                                      (_DecodeType)bitformat,
@@ -317,6 +315,83 @@ Array GDNShell::disassemble(PoolByteArray bytes, int bitformat) {
     return a;
 }
 
+// file analysis stuff
+_DecodedInst *g_decoded_instructions;
+unsigned int g_decoded_instr_num;
+unsigned int RVA_to_instruction_i(unsigned int rva) {
+    for (unsigned int i = 0; i < g_decoded_instr_num; i++)
+        if (g_decoded_instructions[i].offset == rva)
+            return i;
+    return -1;
+}
+void recursive_function_trace(Dictionary dict, unsigned int rva, unsigned int section_rva, unsigned int i) {
+    Array calls;
+    Dictionary fn_data;
+    dict[rva] = fn_data;
+
+    // analyze!
+    _DecodedInst *cur = nullptr;
+    unsigned int starting_i = i;
+    while (true)
+    {
+        cur = &g_decoded_instructions[i];
+        if (strcmp((char *) cur->mnemonic.p, "CALL") == 0) {
+            if (strncmp((char *) cur->operands.p, "0x", 2) == 0) {
+                unsigned int jump_to = std::stoul((char *) cur->operands.p, nullptr, 16);
+                calls.push_back(jump_to);
+                if (!dict.has(jump_to)) {
+                    unsigned int jump_i = RVA_to_instruction_i(jump_to);
+                    if (jump_i > 0 && jump_i < g_decoded_instr_num)
+                        recursive_function_trace(dict, jump_to, section_rva, jump_i);
+                }
+            } else // dynamic function calls, class methods, callbacks, etc.
+                calls.push_back(-1);
+        } else if (strcmp((char *) cur->mnemonic.p, "RET") == 0) {
+            fn_data["calls"] = calls;
+            fn_data["icount"] = i - starting_i + 1;
+            fn_data["size"] = cur->offset - rva + cur->size;
+            dict[rva] = fn_data;
+            return; // end of function!
+        }
+
+        i++; // advance instruction
+        if (i >= g_decoded_instr_num)
+            return;
+    }
+}
+Dictionary GDNShell::analyze(PoolByteArray bytes, int bit_format, unsigned int section_rva, unsigned int entry_rva) {
+    uint8_t *bytes_s;
+    bytes_s = (uint8_t*)bytes.read().ptr();
+    unsigned int num_bytes = bytes.size();
+
+    // dictionary defaults
+    Dictionary functions_data;
+
+    // decompile!
+    g_decoded_instructions = new _DecodedInst[num_bytes]; // declared on the heap because yes.
+    g_decoded_instr_num = 0;
+    _DecodeResult r = distorm_decode(section_rva,
+                                     bytes_s,
+                                     num_bytes,
+                                     (_DecodeType)bit_format,
+                                     g_decoded_instructions,
+                                     num_bytes,
+                                     &g_decoded_instr_num);
+    if (r == DECRES_INPUTERR)
+        return functions_data;
+
+    // analyze...
+    int found_returns = 0;
+    int found_calls = 0;
+    _DecodedInst *cur = nullptr;
+
+    recursive_function_trace(functions_data, entry_rva, section_rva, RVA_to_instruction_i(entry_rva));
+    delete[] g_decoded_instructions;
+
+    return functions_data;
+}
+
+// common Godot funcs/necessary entry points/constructor & deconstructor
 void GDNShell::_init() {
     // initialize any variables here
     time_passed = 0.0;
@@ -324,10 +399,8 @@ void GDNShell::_init() {
 void GDNShell::_process(float delta) {
     time_passed += delta;
 }
-
 GDNShell::GDNShell() = default;
 GDNShell::~GDNShell() = default;
-
 void GDNShell::_register_methods() {
     register_method("_process", &GDNShell::_process);
 
@@ -343,6 +416,7 @@ void GDNShell::_register_methods() {
     register_method("clear", &GDNShell::clear);
 
     register_method("disassemble", &GDNShell::disassemble);
+    register_method("analyze", &GDNShell::analyze);
 
 //    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);
 //    register_property<GDNShell, String>("APP_NAME", &GDNShell::APP_NAME, "Console");

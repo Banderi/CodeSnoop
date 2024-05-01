@@ -168,6 +168,68 @@ enum UNW_FLAGS {
 	FHANDLER = 0x3		# "Frame handler" (??)
 	CHAININFO = 0x4		# The FunctionEntry member is the contents of a previous function table entry.
 }
+enum COFF_SYMBOL_TYPE {
+	NULL = 0				# No type information or unknown base type. Microsoft tools use this setting
+	VOID = 1				# No valid type; used with void pointers and functions
+	CHAR = 2				# A character (signed byte)
+	SHORT = 3				# A 2-byte signed integer
+	INT = 4					# A natural integer type (normally 4 bytes in Windows)
+	LONG = 5				# A 4-byte signed integer
+	FLOAT = 6				# A 4-byte floating-point number
+	DOUBLE = 7				# An 8-byte floating-point number
+	STRUCT = 8				# A structure
+	UNION = 9				# A union
+	ENUM = 10				# An enumerated type
+	MOE = 11				# A member of enumeration (a specific value)
+	BYTE = 12				# A byte; unsigned 1-byte integer
+	WORD = 13				# A word; unsigned 2-byte integer
+	UINT = 14				# An unsigned integer of natural size (normally, 4 bytes)
+	DWORD = 15				# An unsigned 4-byte integer
+	 
+}
+enum COFF_SYMBOL_DTYPE {
+	NULL = 0				# No derived type; the symbol is a simple scalar variable.
+	POINTER = 1				# The symbol is a pointer to base type.
+	FUNCTION = 2			# The symbol is a function that returns a base type.
+	ARRAY = 3				# The symbol is an array of base type.
+}
+enum COFF_SYMBOL_CLASS {
+	END_OF_FUNCTION = -1	# A special symbol that represents the end of function, for debugging purposes.
+	NULL = 0				# No assigned storage class.
+	AUTOMATIC = 1			# The automatic (stack) variable. The Value field specifies the stack frame offset.
+	EXTERNAL = 2			# A value that Microsoft tools use for external symbols. The Value field indicates the size
+							# if the section number is IMAGE_SYM_UNDEFINED (0). If the section number is not zero,
+							# then the Value field specifies the offset within the section.
+	STATIC = 3				# The offset of the symbol within the section. If the Value field is zero, then the symbol represents a section name.
+	REGISTER = 4			# A register variable. The Value field specifies the register number.
+	EXTERNAL_DEF = 5		# A symbol that is defined externally.
+	LABEL = 6				# A code label that is defined within the module. The Value field specifies the offset of the symbol within the section.
+	UNDEFINED_LABEL = 7		# A reference to a code label that is not defined.
+	MEMBER_OF_STRUCT = 8	# The structure member. The Value field specifies the n th member.
+	ARGUMENT = 9			# A formal argument (parameter) of a function. The Value field specifies the n th argument.
+	STRUCT_TAG = 10			# The structure tag-name entry.
+	MEMBER_OF_UNION = 11	# A union member. The Value field specifies the n th member.
+	UNION_TAG = 12			# The Union tag-name entry.
+	TYPE_DEFINITION = 13	# A Typedef entry.
+	UNDEFINED_STATIC = 14	# A static data declaration.
+	ENUM_TAG = 15			# An enumerated type tagname entry.
+	MEMBER_OF_ENUM = 16		# A member of an enumeration. The Value field specifies the n th member.
+	REGISTER_PARAM = 17		# A register parameter.
+	BIT_FIELD = 18			# A bit-field reference. The Value field specifies the n th bit in the bit field.
+	BLOCK = 100				# A .bb (beginning of block) or .eb (end of block) record. The Value field is the relocatable address
+							# of the code location.
+	FUNCTION = 101			# A value that Microsoft tools use for symbol records that define the extent of a function:
+							# begin function (.bf ), end function ( .ef ), and lines in function ( .lf ). For .lf records,
+							# the Value field gives the number of source lines in the function.
+							# For .ef records, the Value field gives the size of the function code.
+	END_OF_STRUCT = 102		# An end-of-structure entry.
+	FILE = 103				# A value that Microsoft tools, as well as traditional COFF format, use for the source-file symbol record.
+							# The symbol is followed by auxiliary records that name the file.
+	SECTION = 104			# A definition of a section (Microsoft tools use STATIC storage class instead).
+	WEAK_EXTERNAL = 105		# A weak external. For more information, see Auxiliary Format 3: Weak Externals.
+	CLR_TOKEN = 107			# A CLR token symbol. The name is an ASCII string that consists of the hexadecimal value of the token.
+							# For more information, see CLR Token Definition (Object Only).
+}
 
 ## PRODID FILE
 var PRODID = []
@@ -199,14 +261,14 @@ func open_file(path):
 		Log.generic(null, "Opening file '%s'" % [path])
 		file = IO.read(path)
 		if PE.file != null:
-			GDNShell.shell_cmd = path
+			GDN.shell_cmd = path
 			read_asm_chunks()
 			return true
 	# failure..?
 	return false
 func close_file():
-	GDNShell.stop()
-	GDNShell.shell_cmd = null
+	GDN.stop()
+	GDN.shell_cmd = null
 	if file != null:
 		file.close() # this is EXTREMELY IMPORTANT.
 	file = null
@@ -218,7 +280,7 @@ func throw_file_read_error(msg):
 	return false
 func read_data_directory_section():
 	return {
-		"VirtualAddress": file.read("rva32"),
+		"RVA": file.read("rva32"),
 		"Size": file.read("u32")
 	}
 func read_asm_chunks():
@@ -384,7 +446,7 @@ func read_asm_chunks():
 			var section = {
 				"Name": file.read("str8"),
 				"VirtualSize": file.read("u32"),
-				"VirtualAddress": file.read("rva32"),
+				"RVA": file.read("rva32"),
 				"SizeOfRawData": file.read("u32"),
 				"PointerToRawData": file.read("p32"),
 				"PointerToRelocations": file.read("p32"),
@@ -404,9 +466,9 @@ func read_asm_chunks():
 		if !file.end_reached():
 			var symbols_num = asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSymbols.value
 			if symbols_num > 0:
-				coff_symbol_table_offset = asm_chunks._IMAGE_NT_HEADERS.FileHeader.PointerToSymbolTable.value
-				file.seek(coff_symbol_table_offset)
-				asm_chunks["_COFF_SYMBOLS_TABLE"] = file.read(18 * symbols_num)
+				COFF_SYMBOLS.offset = asm_chunks._IMAGE_NT_HEADERS.FileHeader.PointerToSymbolTable.value
+				file.seek(COFF_SYMBOLS.offset)
+				asm_chunks["_COFF_SYMBOL_OFFSETS_TABLE"] = file.read(18 * symbols_num)
 			
 				# COFF string table -- this will come right after the symbol table 99.99% of the cases..
 				if file.get_position() < file.get_len():
@@ -421,13 +483,16 @@ func read_asm_chunks():
 					file.seek(coff_string_table_offset + string_table_size.value)
 				else:
 					coff_string_table_offset = -1
+				
+				# read the COFF symbol table into memory
+				read_coff_symbols()
 			else:
-				coff_symbol_table_offset = -1
+				COFF_SYMBOLS.offset = -1
 		
 		# Attribute certificate table
 		if !file.end_reached():
 			if valid_data_directory("SECURITY"):
-				var cert_table_offset = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY.VirtualAddress.value
+				var cert_table_offset = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY.RVA.value
 				var cert_table_size = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory.SECURITY.Size.value
 				asm_chunks["_ATTRIBUTE_CERTIFICATE_TABLE"] = []
 				var adv = 0
@@ -594,7 +659,7 @@ func get_image_base():
 	if file != null:
 		return asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.ImageBase.value
 	return null
-func get_image_entry():
+func get_image_entrypoint_rva():
 	if file != null:
 		return asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint.value
 	return null
@@ -617,7 +682,7 @@ func offset_to_RVA(offset):
 	if section == null:
 		return null
 	var offset_in_section = offset - section.PointerToRawData.value
-	var rva = section.VirtualAddress.value + offset_in_section
+	var rva = section.RVA.value + offset_in_section
 	return rva
 func RVA_to_section(rva):
 	if file == null || rva == null:
@@ -626,7 +691,7 @@ func RVA_to_section(rva):
 	for i in asm_chunks["_SECTION_HEADERS"].size():
 		var section_name = asm_chunks["_SECTION_HEADERS"].keys()[i]
 		var section_info = asm_chunks["_SECTION_HEADERS"][section_name]
-		var section_rva = section_info.VirtualAddress.value
+		var section_rva = section_info.RVA.value
 		var virtualsize = section_info.VirtualSize.value
 		if rva >= section_rva && rva < section_rva + virtualsize:
 			section_idx = i
@@ -637,22 +702,22 @@ func RVA_to_file_offset(rva):
 	var section = RVA_to_section(rva)
 	if section == null:
 		return null
-	var offset_in_section = rva - section.VirtualAddress.value
+	var offset_in_section = rva - section.RVA.value
 	var raw_address = section.PointerToRawData.value + offset_in_section
 	return raw_address
 func valid_data_directory(dir_name):
 	var chunk = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name]
-	if chunk.VirtualAddress.value > 0 && chunk.Size.value > 0:
+	if chunk.RVA.value > 0 && chunk.Size.value > 0:
 		return true
 	return false
 func data_dir_offset(dir_name):
 	if !valid_data_directory(dir_name):
 		return -1
-	return RVA_to_file_offset(asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name].VirtualAddress.value)
+	return RVA_to_file_offset(asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name].RVA.value)
 func data_dir_section(dir_name):
 	if !valid_data_directory(dir_name):
 		return null
-	return RVA_to_section(asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name].VirtualAddress.value)
+	return RVA_to_section(asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name].RVA.value)
 func sort_by_offset(a, b):
 	if a is Dictionary:
 		if "offset" in a:
@@ -671,30 +736,95 @@ func sort_by_offset(a, b):
 	return false
 
 ## COFF Symbol Table
-var coff_symbol_table_offset = -1
-func get_symbol(n):
+var COFF_SYMBOLS = {
+	"offset": -1,
+	"indices": [],
+	"names": []
+}
+func get_symbol_offset(n):
+	return COFF_SYMBOLS.offset + 18 * n
+func read_coff_symbols():
+	COFF_SYMBOLS.indices = []
+	COFF_SYMBOLS.names = []
 	if file == null:
 		return null
-	var symbols_num = asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSymbols.value
-	if symbols_num == 0:
+	var symbols_fields = asm_chunks._IMAGE_NT_HEADERS.FileHeader.NumberOfSymbols.value
+	if symbols_fields == 0 || COFF_SYMBOLS.offset == -1:
 		return null
-	file.seek(coff_symbol_table_offset + 18 * n)
+		
+	var CLOCK = Stopwatch.start()
+	for n in symbols_fields:
+		var offset = get_symbol_offset(n)
+		file.seek(offset + 17)
+		var num_aux_fields = file.get_8()
+		if num_aux_fields != 0:
+			COFF_SYMBOLS.indices.push_back(n)
+	Stopwatch.stop(CLOCK, "Read %d symbols" % [symbols_fields])
+func get_symbol_data(i):
+	var offset = get_symbol_offset(COFF_SYMBOLS.indices[i])
+	file.seek(offset)
+	
 	var shortname = null
 	var shortname_4bytes = file.get_32()
 	if shortname_4bytes == 0:
 		shortname = file.read("p32")
 	else:
-		file.seek(file.get_position() - 4)
+		file.seek(offset)
 		shortname = file.read("utf8")
+		file.seek(offset + 8)
 	var data = {
 		"ShortName": shortname,
 		"Value": file.read("i32"),
 		"SectionNumber": file.read("i16"),
-		"Type": file.read("i16"),
-		"StorageClass": file.read("i8"),
-		"NumberOfAuxSymbols": file.read("i8")
+		"Type": {
+			"BaseType": file.read("i8", "COFF_SYMBOL_TYPE"),
+			"ComplexType": file.read("i8", "COFF_SYMBOL_DTYPE")
+		},
+		"StorageClass": file.read("i8", "COFF_SYMBOL_CLASS"),
+		"NumberOfAuxSymbols": file.read("u8")
 	}
+	var num_aux_fields = data.NumberOfAuxSymbols.value
+	var symbol_class = data.StorageClass.value
+	for m in num_aux_fields:
+		offset += 18
+		match symbol_class:
+			COFF_SYMBOL_CLASS.EXTERNAL:
+				if data.Type.ComplexType.value == COFF_SYMBOL_DTYPE.FUNCTION && data.SectionNumber.value > 0:
+					file.seek(offset)
+					data["FunctionDef"] = {
+						"TagIndex": file.read("u32"),
+						"TotalSize": file.read("u32"),
+						"PointerToLineNumber": file.read("p32"),
+						"PointerToNextFunction": file.read("p32")
+					}
+					print("Function def tag: ",data["TagIndex"].value," size: ",data["TotalSize"].value,"line: ",data["LineNumber"].value," next fnc: ",data["PointerToNextFunction"].value)
+			COFF_SYMBOL_CLASS.FUNCTION:
+				file.seek(offset + 4)
+				data["FunctionDef"] = {
+					"LineNumber": file.read("u16") & file.seek(offset + 10),
+					"PointerToNextFunction": file.read("p32")
+				}
+				print("Function (.bf/.ef) line: ",data["LineNumber"].value," next fnc: ",data["PointerToNextFunction"].value)
+			COFF_SYMBOL_CLASS.FILE:
+				data["FileName"] = file.get_null_terminated_string(offset)
+				print("File name: ",data["FileName"])
+		pass
+	if data.ShortName.type == "UTF-8":
+		data["SymbolName"] = DataStruct.as_text(data.ShortName)
+#		print(data["SymbolName"])
+	else:
+		data["SymbolName"] = get_coff_string(data.ShortName.value)
+	
 	return data
+func get_symbol_name(i):
+	var offset = get_symbol_offset(COFF_SYMBOLS.indices[i])
+	file.seek(offset)
+	var symbol_name = ""
+	if file.get_32() == 0:
+		symbol_name = get_coff_string(file.read("p32").value)
+	else:
+		symbol_name = file.get_null_terminated_string(offset)
+	return symbol_name
 
 ## COFF String Table
 var coff_string_table_offset = -1
@@ -874,7 +1004,7 @@ func read_idata():
 			if "Pad" in last_entry:
 				hints_size += last_entry.Pad.size
 			IMPORT_TABLES.HINTS.size = hints_size
-			print("%d hints starting at %X for %d bytes" % [num_hint_entries, IMPORT_TABLES.HINTS.offset, IMPORT_TABLES.HINTS.size])
+#			Log.generic(null, "%d hints starting at %X for %d bytes" % [num_hint_entries, IMPORT_TABLES.HINTS.offset, IMPORT_TABLES.HINTS.size])
 			for hint in IMPORT_TABLES.HINTS.ordered_array:
 				var fn_name = file.get_null_terminated_string(hint.Name.offset)
 				IMPORT_TABLES.HINTS.raw_chunks[fn_name] = hint
@@ -1144,6 +1274,36 @@ func get_exception_unwind_info(i):
 		
 		return unwind_chunk
 	return null
+
+###
+
+# file analysis
+var ANALYSIS_FUNCS = {}
+func analyze_file():
+	if file != null:
+		
+		var CLOCK = Stopwatch.start()
+		var entry_rva = get_image_entrypoint_rva()
+		var entry_section = RVA_to_section(entry_rva)
+		var section_start = entry_section.PointerToRawData.value
+		var section_size = entry_section.SizeOfRawData.value
+		file.seek(section_start)
+		var bytes = file.get_buffer(section_size)
+		Stopwatch.stop(CLOCK, "File analysis: read buffer of size %d" % [section_size])
+		
+		CLOCK = Stopwatch.start()
+		ANALYSIS_FUNCS = {}
+		var r = GDN.MODULE.analyze(bytes, 2 if PE.is_PE32_64() else 1, entry_section.RVA.value, entry_rva)
+		var fcount = r.size()
+		var calls = 0
+		for f in r:
+			if "calls" in r[f]:
+				calls += r[f].calls.size()
+			else:
+				r[f]["calls"] = []
+				r[f]["size"] = 0
+		ANALYSIS_FUNCS = r
+		Stopwatch.stop(CLOCK, "File analysis: analyzed bytes -- %d functions, %d static fn calls" % [fcount, calls])
 
 ###
 

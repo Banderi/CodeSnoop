@@ -86,6 +86,8 @@ func _on_BtnRecentFile_pressed(path):
 onready var OPEN_DIALOG = $OpenDialog
 func PE_open(path):
 	var CLOCK = Stopwatch.start()
+	selected_asm_address = null
+	focused_function_rva = null
 	if !PE.open_file(path):
 		remove_from_recent(path)
 	else:
@@ -308,10 +310,11 @@ func fill_ImportExportEtcTables():
 		var tree_item = FUNCS_TABLE.create_item()
 		tree_item.set_text(0, "FUN_%08X"%[fn_rva])
 		tree_item.set_metadata(0, fn_rva)
-		for call_rva in PE.ANALYSIS_FUNCS[fn_rva].calls:
+		for call_params in PE.ANALYSIS_FUNCS[fn_rva].calls:
 			var call_item = FUNCS_TABLE.create_item(tree_item)
-			if call_rva != -1:
-				call_item.set_text(0, "0x%X"%[call_rva])
+			call_item.set_metadata(0, call_params)
+			if call_params.jump_to != -1:
+				call_item.set_text(0, "0x%X"%[call_params.jump_to])
 			else:
 				call_item.set_text(0, "dynamic call")
 				call_item.set_custom_color(0, Color(0.8,0.8,0))
@@ -330,10 +333,23 @@ func _on_IATMode_toggled(_button_pressed):
 func _on_Functions_cell_selected():
 	focused_function_rva = null
 	var selection = FUNCS_TABLE.get_selected()
-	var rva = selection.get_metadata(0)
-	if rva != -1:
-		if PE.file != null && rva in PE.ANALYSIS_FUNCS:
-			go_to_function(rva)
+	var parent = selection.get_parent()
+	
+	var metadata = selection.get_metadata(0)
+	if metadata is Dictionary:
+		var parent_rva = parent.get_metadata(0)
+		if parent_rva in PE.ANALYSIS_FUNCS:
+			go_to_function(parent_rva, metadata.address)
+	elif metadata is int:
+		if metadata in PE.ANALYSIS_FUNCS:
+			go_to_function(metadata)
+func _on_Functions_item_activated():
+	var selection = FUNCS_TABLE.get_selected()
+	var parent = selection.get_parent()
+	var metadata = selection.get_metadata(0)
+	if metadata is Dictionary:
+		if metadata.jump_to != -1:
+			go_to_function(metadata.jump_to)
 
 ##### CODING / MAIN PANELS
 var middle_height = 0
@@ -600,12 +616,6 @@ func update_asm_scrollbar_size():
 		var lines_count = PE.ANALYSIS_FUNCS[focused_function_rva].icount # this assumes the .size is VALID!
 		ASM_SLIDER.min_value = min(0, -lines_count + asm_panel_visible_lines())
 		ASM_SLIDER.value = perc * float(ASM_SLIDER.min_value)
-		
-		# for some reason, the above... breaks? if the view is all the way at the bottom of the file.
-		# soooo...
-#		if ASM_SLIDER.value < ASM_SLIDER.max_value:
-#			ASM_SLIDER.value += 1
-#			ASM_SLIDER.value -= 1
 	else:
 		ASM_SLIDER.value = 0
 		ASM_SLIDER.editable = false
@@ -683,13 +693,13 @@ func _on_Disassembler_column_title_pressed(column):
 	update_asm_view()
 func _on_Disassembler_item_selected():
 	if Input.is_action_pressed("ctrl"):
-		return _on_Disassembler_item_activated()
+		return call_deferred("_on_Disassembler_item_activated")
 	var selection = ASM.get_selected()
 	var metadata = selection.get_metadata(0)
 	if metadata == null:
 		return
 	hex_scroll_to(metadata[0], metadata[1])
-	selected_asm_address = selection.get_metadata(0)[0]
+	selected_asm_address = selection.get_metadata(0)[3]
 func _on_Disassembler_item_activated():
 	var selection = ASM.get_selected()
 	var metadata = selection.get_metadata(3)
@@ -711,11 +721,16 @@ func _on_Disassembler_item_activated():
 				elif l == "RIP" || l == "EIP":
 					rva += address[3] + address[2]
 			go_to_function(rva)
-func go_to_function(rva):
-	focused_function_rva = rva
-	ASM_SLIDER.value = 0
-	update_asm_scrollbar_size()
-	update_asm_view()
+func go_to_function(rva, address = null):
+	if rva in PE.ANALYSIS_FUNCS:
+		focused_function_rva = rva
+		selected_asm_address = address
+		ASM_SLIDER.value = 0
+		update_asm_scrollbar_size()
+		update_asm_view()
+		if address == null:
+			var file_offset = PE.RVA_to_file_offset(rva)
+			hex_scroll_to(file_offset, file_offset + PE.ANALYSIS_FUNCS[rva].size)
 	
 # text drawing related stuff
 onready var mono_font : Font = load("res://fonts/basis33.tres")
@@ -943,6 +958,7 @@ func _on_BtnAddr_pressed():
 	$GoToDialog/LineEdit.grab_focus()
 	$GoToDialog/LineEdit.select(2,-1)
 	$GoToDialog/LineEdit.caret_position = 999999
+
 
 
 

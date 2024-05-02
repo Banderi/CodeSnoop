@@ -336,16 +336,19 @@ void recursive_function_trace(Dictionary dict, unsigned int rva, unsigned int se
     {
         cur = &g_decoded_instructions[i];
         if (strcmp((char *) cur->mnemonic.p, "CALL") == 0) {
+            Dictionary call_params;
+            call_params["address"] = cur->offset;
             if (strncmp((char *) cur->operands.p, "0x", 2) == 0) {
                 unsigned int jump_to = std::stoul((char *) cur->operands.p, nullptr, 16);
-                calls.push_back(jump_to);
+                call_params["jump_to"] = jump_to;
                 if (!dict.has(jump_to)) {
                     unsigned int jump_i = RVA_to_instruction_i(jump_to);
                     if (jump_i > 0 && jump_i < g_decoded_instr_num)
                         recursive_function_trace(dict, jump_to, section_rva, jump_i);
                 }
             } else // dynamic function calls, class methods, callbacks, etc.
-                calls.push_back(-1);
+                call_params["jump_to"] = -1;
+            calls.push_back(call_params);
         } else if (strcmp((char *) cur->mnemonic.p, "RET") == 0) {
             fn_data["calls"] = calls;
             fn_data["icount"] = i - starting_i + 1;

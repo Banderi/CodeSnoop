@@ -829,6 +829,7 @@ caret_blink = true
 [connection signal="scrolled" from="VSplitContainer/Main/Middle/Code/ASM/VSlider" to="." method="_on_VSlider_asm_scrolled"]
 [connection signal="value_changed" from="VSplitContainer/Main/Middle/Code/ASM/VSlider" to="VSplitContainer/Main/Middle/Code/ASM/VSlider" method="_on_VSlider_value_changed"]
 [connection signal="cell_selected" from="VSplitContainer/Main/TabContainer/Symbols/Functions" to="." method="_on_Functions_cell_selected"]
+[connection signal="item_activated" from="VSplitContainer/Main/TabContainer/Symbols/Functions" to="." method="_on_Functions_item_activated"]
 [connection signal="toggled" from="VSplitContainer/Main/TabContainer/Externals/Imports/IATMode" to="." method="_on_IATMode_toggled"]
 [connection signal="scrolling" from="VSplitContainer/Footer/Console/VScrollBar" to="VSplitContainer/Footer/Console/Terminal" method="_on_VScrollBar_scrolling"]
 [connection signal="text_entered" from="VSplitContainer/Footer/Console/Input" to="." method="_on_Input_text_entered"]

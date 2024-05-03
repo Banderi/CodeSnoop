@@ -84,10 +84,24 @@ func _on_BtnRecentFile_pressed(path):
 
 # BINARY FILE
 onready var OPEN_DIALOG = $OpenDialog
-func PE_open(path):
-	var CLOCK = Stopwatch.start()
+func close_and_clear_all():
+	PE.close_file()
+	update_hex_scrollbar_size()
+	update_hex_view()
+	update_asm_scrollbar_size()
+	update_asm_view()
+	CHUNKS_LIST.clear()
+	CHUNKS_DATA.clear()
+	EXPORTS_TABLE.clear()
+	IMPORTS_TABLE.clear()
+	FUNCS_TABLE.clear()
+#	COFF_SYMBOLS_TABLE.clear()
+#	LABELS_TABLE.clear()
 	selected_asm_address = null
 	focused_function_rva = null
+func PE_open(path):
+	close_and_clear_all()
+	var CLOCK = Stopwatch.start()
 	if !PE.open_file(path):
 		remove_from_recent(path)
 	else:
@@ -306,18 +320,43 @@ func fill_ImportExportEtcTables():
 	# functions
 	FUNCS_TABLE.clear()
 	FUNCS_TABLE.create_item()
-	for fn_rva in PE.ANALYSIS_FUNCS:
-		var tree_item = FUNCS_TABLE.create_item()
-		tree_item.set_text(0, "FUN_%08X"%[fn_rva])
-		tree_item.set_metadata(0, fn_rva)
-		for call_params in PE.ANALYSIS_FUNCS[fn_rva].calls:
-			var call_item = FUNCS_TABLE.create_item(tree_item)
-			call_item.set_metadata(0, call_params)
-			if call_params.jump_to != -1:
-				call_item.set_text(0, "0x%X"%[call_params.jump_to])
+	for section_name in PE.ANALYSIS.fn_rvas_by_section:
+		var section_item = FUNCS_TABLE.create_item()
+		section_item.set_text(0, section_name)
+		for fn_rva in PE.ANALYSIS.fn_rvas_by_section[section_name]:
+			var func_info = PE.ANALYSIS.functions[fn_rva]
+			var tree_item = FUNCS_TABLE.create_item(section_item)
+			if "calls" in func_info:
+				for call_params in func_info.calls:
+					var call_item = FUNCS_TABLE.create_item(tree_item)
+					call_item.set_metadata(0, call_params)
+					if call_params.jump_to > 0:
+						if PE.RVA_to_section(call_params.jump_to) == null:
+							call_item.set_text(0, "0x%X (??)"%[call_params.jump_to])
+							call_item.set_custom_color(0, Color(0.8,0,0.0))
+						else:
+							call_item.set_text(0, "FUN_%08X"%[call_params.jump_to])
+					elif call_params.jump_to == -1:
+						call_item.set_text(0, "dynamic call")
+						call_item.set_custom_color(0, Color(0.8,0.8,0))
+					elif call_params.jump_to == -2:
+						call_item.set_text(0, "todo...")
+						call_item.set_custom_color(0, Color(0.8,0.8,0))
+					elif call_params.jump_to == -3:
+						call_item.set_text(0, "const dereferenced call")
+						call_item.set_custom_color(0, Color(0.8,0.8,0))
+			if "symbol" in func_info:
+				tree_item.set_text(0, func_info.symbol)
+				tree_item.set_custom_color(0, Color(0.8,0.8,0))
+			elif "thunk" in func_info:
+				tree_item.set_text(0, "THUNK_%08X"%[fn_rva])
+			elif fn_rva == PE.get_image_entrypoint_rva():
+				tree_item.set_text(0, "EntryPoint")
+				tree_item.set_custom_color(0, Color(0.8,1,0.8))
 			else:
-				call_item.set_text(0, "dynamic call")
-				call_item.set_custom_color(0, Color(0.8,0.8,0))
+				tree_item.set_text(0, "FUN_%08X"%[fn_rva])
+			tree_item.set_metadata(0, fn_rva)
+			tree_item.collapsed = true
 func update_info_extra_panels():
 	INFO_PANEL.text = ""
 	if PE.file != null:
@@ -338,18 +377,28 @@ func _on_Functions_cell_selected():
 	var metadata = selection.get_metadata(0)
 	if metadata is Dictionary:
 		var parent_rva = parent.get_metadata(0)
-		if parent_rva in PE.ANALYSIS_FUNCS:
+		if parent_rva in PE.ANALYSIS.functions:
 			go_to_function(parent_rva, metadata.address)
 	elif metadata is int:
-		if metadata in PE.ANALYSIS_FUNCS:
-			go_to_function(metadata)
+		go_to_function(metadata)
 func _on_Functions_item_activated():
 	var selection = FUNCS_TABLE.get_selected()
+	selection.collapsed = !selection.collapsed 
 	var parent = selection.get_parent()
 	var metadata = selection.get_metadata(0)
 	if metadata is Dictionary:
-		if metadata.jump_to != -1:
+		if metadata.jump_to > 0:
 			go_to_function(metadata.jump_to)
+#		elif metadata.jump_to == -3:
+#			var offset = PE.RVA_to_file_offset(metadata.pointer)
+#			var jump_to
+#			if metadata.psize == 32:
+#				jump_to = PE.file.get_32(offset)
+#			elif metadata.psize == 64:
+#				jump_to = PE.file.get_32(offset)
+#			else:
+#				jump_to = null
+#			hex_scroll_to(offset, offset + 4)
 
 ##### CODING / MAIN PANELS
 var middle_height = 0
@@ -613,7 +662,8 @@ func update_asm_scrollbar_size():
 		if ASM_SLIDER.min_value != 0:
 			perc = float(ASM_SLIDER.value) / float(ASM_SLIDER.min_value)
 		ASM_SLIDER.editable = true
-		var lines_count = PE.ANALYSIS_FUNCS[focused_function_rva].icount # this assumes the .size is VALID!
+		var func_info = PE.ANALYSIS.functions[focused_function_rva]
+		var lines_count = func_info.icount # this assumes the .size is VALID!
 		ASM_SLIDER.min_value = min(0, -lines_count + asm_panel_visible_lines())
 		ASM_SLIDER.value = perc * float(ASM_SLIDER.min_value)
 	else:
@@ -639,7 +689,7 @@ func update_asm_view():
 			return
 		
 		PE.file.seek(start_offset)
-		var buf = PE.file.get_buffer(PE.ANALYSIS_FUNCS[focused_function_rva].size) # this assumes the .size is VALID!
+		var buf = PE.file.get_buffer(PE.ANALYSIS.functions[focused_function_rva].size) # this assumes the .size is VALID!
 		var disas = GDN.disassemble(buf, focused_function_rva)
 		
 		for line in num_lines:
@@ -680,6 +730,8 @@ func update_asm_view():
 			tree_item.set_text_align(2, TreeItem.ALIGN_RIGHT)
 			tree_item.set_cell_mode(3,TreeItem.CELL_MODE_CUSTOM)
 			tree_item.set_custom_draw(3, self, "_custom_asm_opcodes_draw")
+func asm_scroll_to_address(address):
+	update_asm_view()
 func _on_VSlider_asm_scrolled():
 	update_asm_view()
 func _on_Disassembler_column_title_pressed(column):
@@ -722,15 +774,22 @@ func _on_Disassembler_item_activated():
 					rva += address[3] + address[2]
 			go_to_function(rva)
 func go_to_function(rva, address = null):
-	if rva in PE.ANALYSIS_FUNCS:
+	if rva in PE.ANALYSIS.functions:
+		var func_info = PE.ANALYSIS.functions[rva]
 		focused_function_rva = rva
 		selected_asm_address = address
-		ASM_SLIDER.value = 0
 		update_asm_scrollbar_size()
-		update_asm_view()
+		if address != null:
+			asm_scroll_to_address(address)
+		else:
+			ASM_SLIDER.value = 0
+			update_asm_view()
 		if address == null:
 			var file_offset = PE.RVA_to_file_offset(rva)
-			hex_scroll_to(file_offset, file_offset + PE.ANALYSIS_FUNCS[rva].size)
+			hex_scroll_to(file_offset, file_offset + func_info.size)
+		return true
+	else:
+		return false
 	
 # text drawing related stuff
 onready var mono_font : Font = load("res://fonts/basis33.tres")
@@ -911,15 +970,7 @@ func _on_BtnOpen_pressed():
 func _on_BtnSave_pressed():
 	pass # Replace with function body.
 func _on_BtnClose_pressed():
-	PE.close_file()
-	update_hex_scrollbar_size()
-	update_hex_view()
-	update_asm_scrollbar_size()
-	update_asm_view()
-	CHUNKS_LIST.clear()
-	CHUNKS_DATA.clear()
-	EXPORTS_TABLE.clear()
-	IMPORTS_TABLE.clear()
+	close_and_clear_all()
 
 func _on_BtnRun_pressed():
 	GDN.start()

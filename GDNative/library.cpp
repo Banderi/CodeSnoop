@@ -279,6 +279,7 @@ void GDNShell::kill() {
 
 // disassembler
 #include "distorm.h"
+#include "mnemonics.h"
 #define MAX_INSTRUCTIONS 3200
 Array GDNShell::disassemble(PoolByteArray bytes, int bitformat, unsigned int address) {
     // convert PoolByteArray into a raw byte (char) array that stupid piece of garbage C can parse >:(
@@ -316,45 +317,112 @@ Array GDNShell::disassemble(PoolByteArray bytes, int bitformat, unsigned int add
 }
 
 // file analysis stuff
-_DecodedInst *g_decoded_instructions;
+_DInst *g_decomposed_instructions;
 unsigned int g_decoded_instr_num;
 unsigned int RVA_to_instruction_i(unsigned int rva) {
-    for (unsigned int i = 0; i < g_decoded_instr_num; i++)
-        if (g_decoded_instructions[i].offset == rva)
+    for (unsigned int i = 0; i < g_decoded_instr_num; i++) {
+        if (g_decomposed_instructions[i].addr == rva)
             return i;
+//        if (g_decomposed_instructions[i].addr > rva) {
+//            auto prev_instr = g_decomposed_instructions[i-1];
+//            return -1;
+//        }
+    }
     return -1;
 }
-void recursive_function_trace(Dictionary dict, unsigned int rva, unsigned int section_rva, unsigned int i) {
+void recursive_function_trace(Dictionary dict, unsigned int rva, unsigned int section_rva, unsigned int image_base, unsigned int i) {
     Array calls;
     Dictionary fn_data;
     dict[rva] = fn_data;
+    if (i == -1)
+        return;
 
     // analyze!
-    _DecodedInst *cur = nullptr;
+    _DInst *cur = nullptr;
     unsigned int starting_i = i;
     while (true)
     {
-        cur = &g_decoded_instructions[i];
-        if (strcmp((char *) cur->mnemonic.p, "CALL") == 0) {
-            Dictionary call_params;
-            call_params["address"] = cur->offset;
-            if (strncmp((char *) cur->operands.p, "0x", 2) == 0) {
-                unsigned int jump_to = std::stoul((char *) cur->operands.p, nullptr, 16);
-                call_params["jump_to"] = jump_to;
-                if (!dict.has(jump_to)) {
-                    unsigned int jump_i = RVA_to_instruction_i(jump_to);
-                    if (jump_i > 0 && jump_i < g_decoded_instr_num)
-                        recursive_function_trace(dict, jump_to, section_rva, jump_i);
-                }
-            } else // dynamic function calls, class methods, callbacks, etc.
-                call_params["jump_to"] = -1;
-            calls.push_back(call_params);
-        } else if (strcmp((char *) cur->mnemonic.p, "RET") == 0) {
+        cur = &g_decomposed_instructions[i];
+        if (cur->flags == FLAG_NOT_DECODABLE) {
             fn_data["calls"] = calls;
             fn_data["icount"] = i - starting_i + 1;
-            fn_data["size"] = cur->offset - rva + cur->size;
+            fn_data["size"] = cur->addr - rva + cur->size;
             dict[rva] = fn_data;
-            return; // end of function!
+            return; // error decoding the machine code
+        }
+        switch (cur->opcode) {
+            case I_RET: { // end of function body
+                fn_data["calls"] = calls;
+                fn_data["icount"] = i - starting_i + 1;
+                fn_data["size"] = cur->addr - rva + cur->size;
+                dict[rva] = fn_data;
+                return;
+            }
+            case I_JMP: {
+                if (i == starting_i) { // this is a JMP table thunk for Imports
+
+//                    int op_type1 = cur->ops[0].type;
+//                    int op_type2 = cur->ops[1].type;
+//                    int op_type3 = cur->ops[2].type;
+//                    int op_type4 = cur->ops[3].type;
+//                    int target = INSTRUCTION_GET_TARGET(cur);
+//                    int imm_addr = cur->imm.addr;
+
+                    int rdi_rva = cur->addr + cur->size; // should be equal to INSTRUCTION_GET_TARGET(cur) in this case
+                    int disp = cur->disp;
+                    int jump_to = rdi_rva + disp;
+                    fn_data["thunk"] = jump_to;
+                    fn_data["icount"] = 1;
+                    fn_data["size"] = cur->size;
+                    dict[rva] = fn_data;
+                    return;
+                }
+                break;
+            }
+            case I_CALL: {
+
+                Dictionary call_params;
+                call_params["address"] = cur->addr;
+
+                int op_type1 = cur->ops[0].type;
+//                int op_type2 = cur->ops[1].type;
+//                int op_type3 = cur->ops[2].type;
+//                int op_type4 = cur->ops[3].type;
+                int jump_to;
+                switch (op_type1) {
+                    case O_PC:
+                    case O_PTR:
+                        jump_to = INSTRUCTION_GET_TARGET(cur);
+                        break;
+                    case O_DISP: // memory dereference with displacement only, instruction.disp.
+                        jump_to = -3;
+                        call_params["pointer"] = cur->disp - image_base;
+                        call_params["psize"] = cur->ops[0].size;
+                        break;
+                    case O_REG: // dynamic function calls, class methods, callbacks, etc.
+                        jump_to = -1;
+                        break;
+                    default:
+                        jump_to = -2;
+                        break;
+                }
+
+
+                call_params["jump_to"] = jump_to;
+                bool valid_jump_found = (jump_to != (cur->addr + cur->size));
+                if (jump_to > 0 && valid_jump_found && !dict.has(jump_to)) {
+                    unsigned int jump_i = RVA_to_instruction_i(jump_to);
+                    if (jump_i == -1) {
+                        Array oob_calls = dict["oob_calls"];
+                        oob_calls.push_back(jump_to);
+                        dict["oob_calls"] = oob_calls;
+                    } else if (jump_i > 0 && jump_i < g_decoded_instr_num)
+                        recursive_function_trace(dict, jump_to, section_rva, image_base, jump_i);
+                }
+
+                calls.push_back(call_params);
+                break;
+            }
         }
 
         i++; // advance instruction
@@ -362,36 +430,36 @@ void recursive_function_trace(Dictionary dict, unsigned int rva, unsigned int se
             return;
     }
 }
-Dictionary GDNShell::analyze(PoolByteArray bytes, int bit_format, unsigned int section_rva, unsigned int entry_rva) {
+Dictionary GDNShell::analyze(PoolByteArray bytes, int bit_format, unsigned int section_rva, unsigned int entry_rva, unsigned int image_base) {
     uint8_t *bytes_s;
     bytes_s = (uint8_t*)bytes.read().ptr();
-    unsigned int num_bytes = bytes.size();
+    int num_bytes = bytes.size();
 
     // dictionary defaults
-    Dictionary functions_data;
+    Dictionary results;
+    Array out_of_bound_calls;
+    results["oob_calls"] = out_of_bound_calls;
 
-    // decompile!
-    g_decoded_instructions = new _DecodedInst[num_bytes]; // declared on the heap because yes.
+    // decompose!
+    g_decomposed_instructions = new _DInst[num_bytes]; // declared on the heap because yes.
     g_decoded_instr_num = 0;
-    _DecodeResult r = distorm_decode(section_rva,
-                                     bytes_s,
-                                     num_bytes,
-                                     (_DecodeType)bit_format,
-                                     g_decoded_instructions,
-                                     num_bytes,
-                                     &g_decoded_instr_num);
-    if (r == DECRES_INPUTERR)
-        return functions_data;
+    _CodeInfo ci;
+    ci.code = bytes_s;
+    ci.codeLen = num_bytes;
+    ci.codeOffset = section_rva;
+    ci.dt = (_DecodeType)bit_format;
+    ci.features = DF_NONE;
+    _DecodeResult r = distorm_decompose(&ci, g_decomposed_instructions, num_bytes, &g_decoded_instr_num);
+    if (r == DECRES_INPUTERR) {
+        delete[] g_decomposed_instructions;
+        return results;
+    }
 
     // analyze...
-    int found_returns = 0;
-    int found_calls = 0;
-    _DecodedInst *cur = nullptr;
+    recursive_function_trace(results, entry_rva, section_rva, image_base, RVA_to_instruction_i(entry_rva));
+    delete[] g_decomposed_instructions;
 
-    recursive_function_trace(functions_data, entry_rva, section_rva, RVA_to_instruction_i(entry_rva));
-    delete[] g_decoded_instructions;
-
-    return functions_data;
+    return results;
 }
 
 // common Godot funcs/necessary entry points/constructor & deconstructor

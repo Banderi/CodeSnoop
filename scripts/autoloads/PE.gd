@@ -705,6 +705,16 @@ func RVA_to_file_offset(rva):
 	var offset_in_section = rva - section.RVA.value
 	var raw_address = section.PointerToRawData.value + offset_in_section
 	return raw_address
+func dereference_pointer_RVA(pointer_rva, disp_size):
+	var offset = RVA_to_file_offset(pointer_rva)
+	file.seek(offset)
+	match disp_size:
+		32:
+			return file.get_32()
+		64:
+			return file.get_64()
+		_:
+			return null
 func valid_data_directory(dir_name):
 	var chunk = asm_chunks._IMAGE_NT_HEADERS.OptionalHeader.DataDirectory[dir_name]
 	if chunk.RVA.value > 0 && chunk.Size.value > 0:
@@ -1278,32 +1288,73 @@ func get_exception_unwind_info(i):
 ###
 
 # file analysis
-var ANALYSIS_FUNCS = {}
+var ANALYSIS = {
+	"functions": {},
+	"fn_rvas_by_section": {}
+}
+func analyze_fn_call_tree(fn_rva):
+	# read section bytes
+	var CLOCK = Stopwatch.start()
+	var section = RVA_to_section(fn_rva)
+	if section == null:
+		return {}
+	var section_start = section.PointerToRawData.value
+	var section_size = section.SizeOfRawData.value
+	var section_name = DataStruct.as_text(section.Name)
+	file.seek(section_start)
+	var bytes = file.get_buffer(section_size)
+	
+	# disassemble & analyze bytes
+	CLOCK = Stopwatch.start()
+	var results = GDN.MODULE.analyze(bytes, 2 if PE.is_PE32_64() else 1, section.RVA.value, fn_rva, get_image_base())
+	var fcount = results.size()
+	ANALYSIS.fn_rvas_by_section[section_name] = []
+	for rva in results:
+		if rva is int:
+			ANALYSIS.fn_rvas_by_section[section_name].push_back(rva)
+	ANALYSIS.fn_rvas_by_section[section_name].sort()
+	Stopwatch.stop(CLOCK, "File analysis: analyzed section %s -- %d bytes" % [section_name, section_size])
+	return results
+	
 func analyze_file():
 	if file != null:
 		
-		var CLOCK = Stopwatch.start()
-		var entry_rva = get_image_entrypoint_rva()
-		var entry_section = RVA_to_section(entry_rva)
-		var section_start = entry_section.PointerToRawData.value
-		var section_size = entry_section.SizeOfRawData.value
-		file.seek(section_start)
-		var bytes = file.get_buffer(section_size)
-		Stopwatch.stop(CLOCK, "File analysis: read buffer of size %d" % [section_size])
+		ANALYSIS.functions = {}
+		ANALYSIS.fn_rvas_by_section = {}
 		
-		CLOCK = Stopwatch.start()
-		ANALYSIS_FUNCS = {}
-		var r = GDN.MODULE.analyze(bytes, 2 if PE.is_PE32_64() else 1, entry_section.RVA.value, entry_rva)
-		var fcount = r.size()
-		var calls = 0
-		for f in r:
-			if "calls" in r[f]:
-				calls += r[f].calls.size()
-			else:
-				r[f]["calls"] = []
-				r[f]["size"] = 0
-		ANALYSIS_FUNCS = r
-		Stopwatch.stop(CLOCK, "File analysis: analyzed bytes -- %d functions, %d static fn calls" % [fcount, calls])
+		var funcs_to_analyze = [
+			get_image_entrypoint_rva()
+		]
+		while funcs_to_analyze.size() > 0:
+			var fn_rva = funcs_to_analyze[0]
+			if !(fn_rva in ANALYSIS.functions):
+				var results = analyze_fn_call_tree(fn_rva)
+				if "oob_calls" in results:
+					for oob_rva in results["oob_calls"]:
+						if (!oob_rva in funcs_to_analyze):
+							funcs_to_analyze.push_back(oob_rva)
+					results.erase("oob_calls")
+				for fn in results:
+					if "calls" in results[fn]:
+						for call_params in results[fn].calls:
+							if call_params.jump_to == -3:
+								var dereferenced_rva = dereference_pointer_RVA(call_params.pointer, call_params.psize)
+								if !(dereferenced_rva in funcs_to_analyze):
+									funcs_to_analyze.push_back(dereferenced_rva)
+				ANALYSIS.functions.merge(results)
+			funcs_to_analyze.pop_front()
+		
+		# substitute IMPORT thunks (jump tables)
+		if IMPORT_TABLES.IMPORT.offset != -1:
+			for fn_name in ANALYSIS.functions:
+				if "thunk" in ANALYSIS.functions[fn_name]:
+					var thunk_offset = RVA_to_file_offset(ANALYSIS.functions[fn_name].thunk)
+					for import_name in IMPORT_TABLES.IAT.raw_chunks:
+						for symbol_name in IMPORT_TABLES.IAT.raw_chunks[import_name]:
+							var chunk = IMPORT_TABLES.IAT.raw_chunks[import_name][symbol_name]
+							if chunk.offset == thunk_offset:
+								ANALYSIS.functions[fn_name]["import"] = import_name
+								ANALYSIS.functions[fn_name]["symbol"] = symbol_name
 
 ###
 

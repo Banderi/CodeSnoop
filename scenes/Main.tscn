@@ -361,7 +361,7 @@ custom_styles/tab_bg = SubResource( 7 )
 tab_align = 0
 drag_to_rearrange_enabled = true
 
-[node name="Symbols" type="VSplitContainer" parent="VSplitContainer/Main/TabContainer"]
+[node name="Functions" type="VSplitContainer" parent="VSplitContainer/Main/TabContainer"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 4.0
@@ -369,31 +369,12 @@ margin_top = 34.0
 margin_right = -4.0
 margin_bottom = -4.0
 
-[node name="Functions" type="Tree" parent="VSplitContainer/Main/TabContainer/Symbols"]
+[node name="Functions" type="Tree" parent="VSplitContainer/Main/TabContainer/Functions"]
 margin_right = 222.0
 margin_bottom = 774.0
 size_flags_vertical = 3
 custom_constants/vseparation = -1
-custom_fonts/title_button_font = ExtResource( 4 )
-custom_fonts/font = ExtResource( 4 )
-hide_root = true
-
-[node name="Labels" type="Tree" parent="VSplitContainer/Main/TabContainer/Symbols"]
-visible = false
-margin_right = 222.0
-margin_bottom = 381.0
-size_flags_vertical = 3
-custom_constants/vseparation = -1
-custom_fonts/title_button_font = ExtResource( 4 )
-custom_fonts/font = ExtResource( 4 )
-hide_root = true
-
-[node name="COFF" type="Tree" parent="VSplitContainer/Main/TabContainer/Symbols"]
-visible = false
-margin_right = 222.0
-margin_bottom = 774.0
-size_flags_vertical = 3
-custom_constants/vseparation = -1
+custom_constants/draw_relationship_lines = 1
 custom_fonts/title_button_font = ExtResource( 4 )
 custom_fonts/font = ExtResource( 4 )
 hide_root = true
@@ -456,6 +437,35 @@ custom_constants/line_separation = -4
 custom_fonts/mono_font = ExtResource( 4 )
 custom_fonts/normal_font = ExtResource( 4 )
 selection_enabled = true
+
+[node name="Symbols" type="VSplitContainer" parent="VSplitContainer/Main/TabContainer"]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 4.0
+margin_top = 34.0
+margin_right = -4.0
+margin_bottom = -4.0
+
+[node name="Labels" type="Tree" parent="VSplitContainer/Main/TabContainer/Symbols"]
+visible = false
+margin_right = 222.0
+margin_bottom = 381.0
+size_flags_vertical = 3
+custom_constants/vseparation = -1
+custom_fonts/title_button_font = ExtResource( 4 )
+custom_fonts/font = ExtResource( 4 )
+hide_root = true
+
+[node name="COFF" type="Tree" parent="VSplitContainer/Main/TabContainer/Symbols"]
+visible = false
+margin_right = 222.0
+margin_bottom = 774.0
+size_flags_vertical = 3
+custom_constants/vseparation = -1
+custom_fonts/title_button_font = ExtResource( 4 )
+custom_fonts/font = ExtResource( 4 )
+hide_root = true
 
 [node name="Footer" type="HSplitContainer" parent="VSplitContainer"]
 margin_top = 824.0
@@ -828,8 +838,8 @@ caret_blink = true
 [connection signal="item_selected" from="VSplitContainer/Main/Middle/Code/ASM/Disassembler" to="." method="_on_Disassembler_item_selected"]
 [connection signal="scrolled" from="VSplitContainer/Main/Middle/Code/ASM/VSlider" to="." method="_on_VSlider_asm_scrolled"]
 [connection signal="value_changed" from="VSplitContainer/Main/Middle/Code/ASM/VSlider" to="VSplitContainer/Main/Middle/Code/ASM/VSlider" method="_on_VSlider_value_changed"]
-[connection signal="cell_selected" from="VSplitContainer/Main/TabContainer/Symbols/Functions" to="." method="_on_Functions_cell_selected"]
-[connection signal="item_activated" from="VSplitContainer/Main/TabContainer/Symbols/Functions" to="." method="_on_Functions_item_activated"]
+[connection signal="cell_selected" from="VSplitContainer/Main/TabContainer/Functions/Functions" to="." method="_on_Functions_cell_selected"]
+[connection signal="item_activated" from="VSplitContainer/Main/TabContainer/Functions/Functions" to="." method="_on_Functions_item_activated"]
 [connection signal="toggled" from="VSplitContainer/Main/TabContainer/Externals/Imports/IATMode" to="." method="_on_IATMode_toggled"]
 [connection signal="scrolling" from="VSplitContainer/Footer/Console/VScrollBar" to="VSplitContainer/Footer/Console/Terminal" method="_on_VScrollBar_scrolling"]
 [connection signal="text_entered" from="VSplitContainer/Footer/Console/Input" to="." method="_on_Input_text_entered"]

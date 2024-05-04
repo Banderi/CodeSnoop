@@ -1018,6 +1018,18 @@ func read_idata():
 			for hint in IMPORT_TABLES.HINTS.ordered_array:
 				var fn_name = file.get_null_terminated_string(hint.Name.offset)
 				IMPORT_TABLES.HINTS.raw_chunks[fn_name] = hint
+		
+		# fill the IAT RVA lookup
+		IMPORT_TABLES.IAT["by_RVA"] = {}
+		for import_name in IMPORT_TABLES.IAT.raw_chunks:
+			for fn_name in IMPORT_TABLES.IAT.raw_chunks[import_name]:
+				if fn_name == "__empty_end":
+					continue
+				var chunk = IMPORT_TABLES.IAT.raw_chunks[import_name][fn_name]
+				var formatted = IMPORT_TABLES.IAT.formatted[import_name][fn_name]
+				var rva = offset_to_RVA(chunk.offset)
+				IMPORT_TABLES.IAT.by_RVA[rva] = formatted
+		
 func read_thunk_chunk(is_PE32_64): # TODO: move the content parsing here!
 	var data = null
 	if !is_PE32_64:
@@ -1103,6 +1115,7 @@ func fill_thunk_table(memberRvaName : String):
 				else:
 					# add thunk data to structured tables
 					var thunk_formatted = get_thunk_formatted_data(thunk_raw)
+					thunk_formatted["import_name"] = import_name
 					_raw_chunks[import_name][thunk_formatted.fn_name] = thunk_raw
 					_formatted[import_name][thunk_formatted.fn_name] = thunk_formatted
 		
@@ -1314,8 +1327,7 @@ func analyze_fn_call_tree(fn_rva):
 			ANALYSIS.fn_rvas_by_section[section_name].push_back(rva)
 	ANALYSIS.fn_rvas_by_section[section_name].sort()
 	Stopwatch.stop(CLOCK, "File analysis: analyzed section %s -- %d bytes" % [section_name, section_size])
-	return results
-	
+	return results	
 func analyze_file():
 	if file != null:
 		
@@ -1326,35 +1338,37 @@ func analyze_file():
 			get_image_entrypoint_rva()
 		]
 		while funcs_to_analyze.size() > 0:
-			var fn_rva = funcs_to_analyze[0]
-			if !(fn_rva in ANALYSIS.functions):
-				var results = analyze_fn_call_tree(fn_rva)
+			var tree_head_rva = funcs_to_analyze[0]
+			if !(tree_head_rva in ANALYSIS.functions):
+				var results = analyze_fn_call_tree(tree_head_rva)
+				for fn in results:
+					if fn is int && !(fn in ANALYSIS.functions):
+						if "calls" in results[fn]:
+							for call_params in results[fn].calls:
+								
+								
+								# first, check if the current call is an import thunk
+								if IMPORT_TABLES.IMPORT.offset != -1:
+									var rva = call_params.jump_to
+									if rva > 0 && rva in IMPORT_TABLES.IAT.by_RVA:
+										var iat_entry = IMPORT_TABLES.IAT.by_RVA[rva]
+										call_params["import"] = iat_entry.import_name
+										call_params["symbol"] = iat_entry.fn_name
+										if "oob_calls" in results && rva in results["oob_calls"]:
+											results["oob_calls"].erase(rva)
+										continue
+								
+								if call_params.jump_to == -3:
+									var dereferenced_rva = dereference_pointer_RVA(call_params.pointer, call_params.psize)
+									if !(dereferenced_rva in funcs_to_analyze):
+										funcs_to_analyze.push_back(dereferenced_rva)
 				if "oob_calls" in results:
 					for oob_rva in results["oob_calls"]:
 						if (!oob_rva in funcs_to_analyze):
 							funcs_to_analyze.push_back(oob_rva)
 					results.erase("oob_calls")
-				for fn in results:
-					if "calls" in results[fn]:
-						for call_params in results[fn].calls:
-							if call_params.jump_to == -3:
-								var dereferenced_rva = dereference_pointer_RVA(call_params.pointer, call_params.psize)
-								if !(dereferenced_rva in funcs_to_analyze):
-									funcs_to_analyze.push_back(dereferenced_rva)
 				ANALYSIS.functions.merge(results)
 			funcs_to_analyze.pop_front()
-		
-		# substitute IMPORT thunks (jump tables)
-		if IMPORT_TABLES.IMPORT.offset != -1:
-			for fn_name in ANALYSIS.functions:
-				if "thunk" in ANALYSIS.functions[fn_name]:
-					var thunk_offset = RVA_to_file_offset(ANALYSIS.functions[fn_name].thunk)
-					for import_name in IMPORT_TABLES.IAT.raw_chunks:
-						for symbol_name in IMPORT_TABLES.IAT.raw_chunks[import_name]:
-							var chunk = IMPORT_TABLES.IAT.raw_chunks[import_name][symbol_name]
-							if chunk.offset == thunk_offset:
-								ANALYSIS.functions[fn_name]["import"] = import_name
-								ANALYSIS.functions[fn_name]["symbol"] = symbol_name
 
 ###
 

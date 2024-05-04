@@ -367,11 +367,14 @@ void recursive_function_trace(Dictionary dict, unsigned int rva, unsigned int se
 //                    int op_type4 = cur->ops[3].type;
 //                    int target = INSTRUCTION_GET_TARGET(cur);
 //                    int imm_addr = cur->imm.addr;
+                    Dictionary call_params;
 
                     int rdi_rva = cur->addr + cur->size; // should be equal to INSTRUCTION_GET_TARGET(cur) in this case
-                    int disp = cur->disp;
-                    int jump_to = rdi_rva + disp;
-                    fn_data["thunk"] = jump_to;
+                    call_params["jump_to"] = rdi_rva + cur->disp;
+                    call_params["address"] = cur->addr;
+                    calls.push_back(call_params);
+                    fn_data["calls"] = calls;
+                    fn_data["is_thunk"] = true;
                     fn_data["icount"] = 1;
                     fn_data["size"] = cur->size;
                     dict[rva] = fn_data;
@@ -395,9 +398,7 @@ void recursive_function_trace(Dictionary dict, unsigned int rva, unsigned int se
                         jump_to = INSTRUCTION_GET_TARGET(cur);
                         break;
                     case O_DISP: // memory dereference with displacement only, instruction.disp.
-                        jump_to = -3;
-                        call_params["pointer"] = cur->disp - image_base;
-                        call_params["psize"] = cur->ops[0].size;
+                        jump_to = cur->disp - image_base;
                         break;
                     case O_REG: // dynamic function calls, class methods, callbacks, etc.
                         jump_to = -1;

@@ -95,8 +95,8 @@ func close_and_clear_all():
 	EXPORTS_TABLE.clear()
 	IMPORTS_TABLE.clear()
 	FUNCS_TABLE.clear()
-#	COFF_SYMBOLS_TABLE.clear()
-#	LABELS_TABLE.clear()
+	COFF_SYMBOLS_TABLE.clear() # TODO
+	LABELS_TABLE.clear() # TODO
 	selected_asm_address = null
 	focused_function_rva = null
 func PE_open(path):
@@ -124,6 +124,9 @@ func PE_open(path):
 		
 		# move the file path to the most recent spot in file history
 		add_to_recent(path)
+		
+		# go to entry point
+		go_to_function(PE.get_image_entrypoint_rva())
 func _on_OpenDialog_file_selected(path):
 	PE_open(path)
 
@@ -262,7 +265,7 @@ func _on_ChunkTable_item_activated():
 onready var IMPORTS_TABLE = $VSplitContainer/Main/TabContainer/Externals/Imports
 onready var EXPORTS_TABLE = $VSplitContainer/Main/TabContainer/Externals/Exports
 onready var BUTTON_IAT_MODE = $VSplitContainer/Main/TabContainer/Externals/Imports/IATMode
-onready var FUNCS_TABLE = $VSplitContainer/Main/TabContainer/Symbols/Functions
+onready var FUNCS_TABLE = $VSplitContainer/Main/TabContainer/Functions/Functions
 onready var LABELS_TABLE = $VSplitContainer/Main/TabContainer/Symbols/Labels
 onready var COFF_SYMBOLS_TABLE = $VSplitContainer/Main/TabContainer/Symbols/COFF
 onready var INFO_PANEL = $VSplitContainer/Main/TabContainer/Info
@@ -324,39 +327,56 @@ func fill_ImportExportEtcTables():
 		var section_item = FUNCS_TABLE.create_item()
 		section_item.set_text(0, section_name)
 		for fn_rva in PE.ANALYSIS.fn_rvas_by_section[section_name]:
-			var func_info = PE.ANALYSIS.functions[fn_rva]
-			var tree_item = FUNCS_TABLE.create_item(section_item)
-			if "calls" in func_info:
-				for call_params in func_info.calls:
-					var call_item = FUNCS_TABLE.create_item(tree_item)
-					call_item.set_metadata(0, call_params)
-					if call_params.jump_to > 0:
-						if PE.RVA_to_section(call_params.jump_to) == null:
-							call_item.set_text(0, "0x%X (??)"%[call_params.jump_to])
-							call_item.set_custom_color(0, Color(0.8,0,0.0))
-						else:
-							call_item.set_text(0, "FUN_%08X"%[call_params.jump_to])
-					elif call_params.jump_to == -1:
-						call_item.set_text(0, "dynamic call")
-						call_item.set_custom_color(0, Color(0.8,0.8,0))
-					elif call_params.jump_to == -2:
-						call_item.set_text(0, "todo...")
-						call_item.set_custom_color(0, Color(0.8,0.8,0))
-					elif call_params.jump_to == -3:
-						call_item.set_text(0, "const dereferenced call")
-						call_item.set_custom_color(0, Color(0.8,0.8,0))
-			if "symbol" in func_info:
-				tree_item.set_text(0, func_info.symbol)
-				tree_item.set_custom_color(0, Color(0.8,0.8,0))
-			elif "thunk" in func_info:
-				tree_item.set_text(0, "THUNK_%08X"%[fn_rva])
-			elif fn_rva == PE.get_image_entrypoint_rva():
-				tree_item.set_text(0, "EntryPoint")
-				tree_item.set_custom_color(0, Color(0.8,1,0.8))
+			recursive_add_fn_tree_item(fn_rva, section_item, 0)
+func recursive_add_fn_tree_item(fn_rva, parent, level):
+	if !(fn_rva in PE.ANALYSIS.functions):
+		return
+	var func_info = PE.ANALYSIS.functions[fn_rva]
+	var is_thunk = "is_thunk" in func_info
+	if is_thunk && level == 0:
+		return
+	var tree_item = FUNCS_TABLE.create_item(parent)
+	if is_thunk:
+		if "symbol" in func_info.calls[0]:
+			tree_item.set_text(0, func_info.calls[0].symbol)
+			tree_item.set_custom_color(0, Color(0.8,0.8,0))
+		else:
+			tree_item.set_text(0, "THUNK_%08X"%[fn_rva])
+	elif fn_rva == PE.get_image_entrypoint_rva():
+		tree_item.set_text(0, "EntryPoint")
+		tree_item.set_custom_color(0, Color(0.8,1,0.8))
+	else:
+		tree_item.set_text(0, "FUN_%08X"%[fn_rva])
+	
+	tree_item.set_metadata(0, fn_rva)
+	tree_item.collapsed = true
+	
+	# child function calls
+	if !is_thunk && "calls" in func_info && level < 1:
+		for call_params in func_info.calls:
+			var call_item = recursive_add_fn_tree_item(call_params.jump_to, tree_item, level + 1)
+			if call_item != null:
+				call_item.set_metadata(0, call_params)
 			else:
-				tree_item.set_text(0, "FUN_%08X"%[fn_rva])
-			tree_item.set_metadata(0, fn_rva)
-			tree_item.collapsed = true
+				call_item = FUNCS_TABLE.create_item(tree_item)
+				call_item.set_metadata(0, call_params)
+				if call_params.jump_to == -1:
+					call_item.set_text(0, "dynamic call")
+					call_item.set_custom_color(0, Color(0.4,0.4,0.4))
+				elif call_params.jump_to == -2:
+					call_item.set_text(0, "todo...")
+					call_item.set_custom_color(0, Color(0.4,0.4,0.4))
+				elif call_params.jump_to == -3:
+					call_item.set_text(0, "const dereferenced call")
+					call_item.set_custom_color(0, Color(0.4,0.4,0.4))
+				elif "symbol" in call_params:
+					call_item.set_text(0, call_params.symbol)
+					call_item.set_custom_color(0, Color(0.8,0.8,0))
+				else:
+					call_item.set_text(0, "??")
+					call_item.set_custom_color(0, Color(0.8,0.8,0))
+			
+	return tree_item
 func update_info_extra_panels():
 	INFO_PANEL.text = ""
 	if PE.file != null:
@@ -387,18 +407,8 @@ func _on_Functions_item_activated():
 	var parent = selection.get_parent()
 	var metadata = selection.get_metadata(0)
 	if metadata is Dictionary:
-		if metadata.jump_to > 0:
+		if !("symbol" in metadata) && metadata.jump_to > 0:
 			go_to_function(metadata.jump_to)
-#		elif metadata.jump_to == -3:
-#			var offset = PE.RVA_to_file_offset(metadata.pointer)
-#			var jump_to
-#			if metadata.psize == 32:
-#				jump_to = PE.file.get_32(offset)
-#			elif metadata.psize == 64:
-#				jump_to = PE.file.get_32(offset)
-#			else:
-#				jump_to = null
-#			hex_scroll_to(offset, offset + 4)
 
 ##### CODING / MAIN PANELS
 var middle_height = 0
@@ -787,6 +797,33 @@ func go_to_function(rva, address = null):
 		if address == null:
 			var file_offset = PE.RVA_to_file_offset(rva)
 			hex_scroll_to(file_offset, file_offset + func_info.size)
+		
+		if address == null:
+			var sel_rva = -1
+			if FUNCS_TABLE.get_selected() != null:
+				var sel_metadata = FUNCS_TABLE.get_selected().get_metadata(0)
+				if sel_metadata is int:
+					sel_rva = sel_metadata
+			if sel_rva != rva:
+				var root = FUNCS_TABLE.get_root()
+				var section = root.get_children()
+				var fn_tree_item = section.get_children()
+				while fn_tree_item != null:
+					var text = fn_tree_item.get_text(0)
+					var metadata = fn_tree_item.get_metadata(0)
+					if metadata is int && metadata == rva:
+						fn_tree_item.select(0)
+						FUNCS_TABLE.scroll_to_item(fn_tree_item)
+						break
+					
+					fn_tree_item = fn_tree_item.get_next()
+					if fn_tree_item == null:
+						section = section.get_next()
+						if section == null:
+							break
+						else:
+							fn_tree_item = section.get_children()
+		
 		return true
 	else:
 		return false

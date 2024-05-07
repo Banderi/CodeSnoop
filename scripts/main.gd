@@ -97,8 +97,8 @@ func close_and_clear_all():
 	FUNCS_TABLE.clear()
 	COFF_SYMBOLS_TABLE.clear() # TODO
 	LABELS_TABLE.clear() # TODO
-	selected_asm_address = null
 	focused_function_rva = null
+	selected_asm_rva = null
 func PE_open(path):
 	close_and_clear_all()
 	var CLOCK = Stopwatch.start()
@@ -661,8 +661,8 @@ func _on_AsciiMode_toggled(button_pressed):
 # asm / disassembler
 onready var ASM = $VSplitContainer/Main/Middle/Code/ASM/Disassembler
 onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/ASM/VSlider
-var selected_asm_address = null
 var focused_function_rva = null
+var selected_asm_rva = null
 func asm_panel_visible_lines():
 	return floor((ASM.rect_size.y) / (14 + ASM.get("custom_constants/vseparation")) - 4)
 func update_asm_scrollbar_size():
@@ -679,19 +679,8 @@ func update_asm_scrollbar_size():
 	else:
 		ASM_SLIDER.value = 0
 		ASM_SLIDER.editable = false
-func update_asm_view():
-	
-	# reset table
-	ASM.clear()
-	ASM.create_item()
-	ASM.set_column_min_width(0,12) # address
-	ASM.set_column_min_width(1,25) # hex bytes
-	ASM.set_column_min_width(2,25) # labels / symbols
-	ASM.set_column_min_width(3,80) # opcode (mnemonics) + operands
-
+func update_asm_view(scroll_to_line = false):
 	if PE.file != null && focused_function_rva != null:
-		var num_lines = asm_panel_visible_lines()
-		var slider_scroll = -ASM_SLIDER.value
 		
 		# for now, just display the first (entry point) function
 		var start_offset = PE.RVA_to_file_offset(focused_function_rva)
@@ -702,6 +691,29 @@ func update_asm_view():
 		var buf = PE.file.get_buffer(PE.ANALYSIS.functions[focused_function_rva].size) # this assumes the .size is VALID!
 		var disas = GDN.disassemble(buf, focused_function_rva)
 		
+		
+		var num_lines = asm_panel_visible_lines()
+		if scroll_to_line && selected_asm_rva != null:
+			for i in disas.size():
+				var asm_instr = disas[i]
+				if asm_instr.offset == selected_asm_rva:
+					var first_visible_line = -ASM_SLIDER.value
+					var last_visible_line = first_visible_line + asm_panel_visible_lines() - 1
+					if i < first_visible_line:
+						ASM_SLIDER.value = -(i)
+					elif i > last_visible_line:
+						ASM_SLIDER.value = -(i - asm_panel_visible_lines() + 1)
+					break
+		
+		# reset table
+		ASM.clear()
+		ASM.create_item()
+		ASM.set_column_min_width(0,12) # address
+		ASM.set_column_min_width(1,25) # hex bytes
+		ASM.set_column_min_width(2,25) # labels / symbols
+		ASM.set_column_min_width(3,80) # opcode (mnemonics) + operands
+		
+		var slider_scroll = -ASM_SLIDER.value
 		for line in num_lines:
 			var i = line + slider_scroll
 			if i < 0 || i > disas.size() - 1:
@@ -710,7 +722,7 @@ func update_asm_view():
 			var tree_item = ASM.create_item()
 			
 			var asm_instr = disas[i]
-			var address = asm_instr.offset
+			var instr_rva = asm_instr.offset
 			
 			# raw hex bytes
 			var hex_bytes = ""
@@ -718,20 +730,20 @@ func update_asm_view():
 				hex_bytes += asm_instr.hex.substr(b, 2).to_upper() + " "
 			
 			
-			tree_item.set_metadata(0, [PE.RVA_to_file_offset(address), PE.RVA_to_file_offset(address) + asm_instr.size, asm_instr.size, address])
+			tree_item.set_metadata(0, [PE.RVA_to_file_offset(instr_rva), PE.RVA_to_file_offset(instr_rva) + asm_instr.size, asm_instr.size, instr_rva])
 			tree_item.set_metadata(1, hex_bytes)
 #			tree_item.set_metadata(1, symbols)
 			tree_item.set_metadata(3, [asm_instr.mnemonic, asm_instr.operands])
-			if selected_asm_address != null && address == selected_asm_address:
+			if selected_asm_rva != null && instr_rva == selected_asm_rva:
 				tree_item.select(0)
 			
 			match ASM.get_column_title(0):
 				"VA":
-					tree_item.set_text(0, "%08X" % [PE.get_image_base() + address])
+					tree_item.set_text(0, "%08X" % [PE.get_image_base() + instr_rva])
 				"RVA":
-					tree_item.set_text(0, "%08X" % [address])
+					tree_item.set_text(0, "%08X" % [instr_rva])
 				"Raw":
-					tree_item.set_text(0, "%08X" % [PE.RVA_to_file_offset(address)])
+					tree_item.set_text(0, "%08X" % [PE.RVA_to_file_offset(instr_rva)])
 			
 			tree_item.set_custom_color(0, Color(1,1,1,0.3))
 			tree_item.set_text_align(0, TreeItem.ALIGN_RIGHT)
@@ -740,8 +752,8 @@ func update_asm_view():
 			tree_item.set_text_align(2, TreeItem.ALIGN_RIGHT)
 			tree_item.set_cell_mode(3,TreeItem.CELL_MODE_CUSTOM)
 			tree_item.set_custom_draw(3, self, "_custom_asm_opcodes_draw")
-func asm_scroll_to_address(address):
-	update_asm_view()
+func asm_scroll_to_address(rva):
+	update_asm_view(true)
 func _on_VSlider_asm_scrolled():
 	update_asm_view()
 func _on_Disassembler_column_title_pressed(column):
@@ -761,7 +773,7 @@ func _on_Disassembler_item_selected():
 	if metadata == null:
 		return
 	hex_scroll_to(metadata[0], metadata[1])
-	selected_asm_address = selection.get_metadata(0)[3]
+	selected_asm_rva = selection.get_metadata(0)[3]
 func _on_Disassembler_item_activated():
 	var selection = ASM.get_selected()
 	var metadata = selection.get_metadata(3)
@@ -783,36 +795,37 @@ func _on_Disassembler_item_activated():
 				elif l == "RIP" || l == "EIP":
 					rva += address[3] + address[2]
 			go_to_function(rva)
-func go_to_function(rva, address = null):
-	if rva in PE.ANALYSIS.functions:
-		var func_info = PE.ANALYSIS.functions[rva]
-		focused_function_rva = rva
-		selected_asm_address = address
+func go_to_function(fn_rva, address_rva = null):
+	if fn_rva in PE.ANALYSIS.functions:
+		var func_info = PE.ANALYSIS.functions[fn_rva]
+		focused_function_rva = fn_rva
+		selected_asm_rva = address_rva
 		update_asm_scrollbar_size()
-		if address != null:
-			asm_scroll_to_address(address)
+		if address_rva != null:
+			asm_scroll_to_address(address_rva)
 		else:
 			ASM_SLIDER.value = 0
 			update_asm_view()
-		if address == null:
-			var file_offset = PE.RVA_to_file_offset(rva)
+		if address_rva == null:
+			var file_offset = PE.RVA_to_file_offset(fn_rva)
 			hex_scroll_to(file_offset, file_offset + func_info.size)
 		
-		if address == null:
+		if address_rva == null:
 			var sel_rva = -1
 			if FUNCS_TABLE.get_selected() != null:
 				var sel_metadata = FUNCS_TABLE.get_selected().get_metadata(0)
 				if sel_metadata is int:
 					sel_rva = sel_metadata
-			if sel_rva != rva:
+			if sel_rva != fn_rva:
 				var root = FUNCS_TABLE.get_root()
 				var section = root.get_children()
 				var fn_tree_item = section.get_children()
 				while fn_tree_item != null:
 					var text = fn_tree_item.get_text(0)
 					var metadata = fn_tree_item.get_metadata(0)
-					if metadata is int && metadata == rva:
+					if metadata is int && metadata == fn_rva:
 						fn_tree_item.select(0)
+						fn_tree_item.collapsed = false
 						FUNCS_TABLE.scroll_to_item(fn_tree_item)
 						break
 					

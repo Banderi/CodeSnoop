@@ -33,7 +33,7 @@ namespace godot {
         void clear();
 
         Array disassemble(PoolByteArray bytes, int bit_format, unsigned int address);
-        Dictionary analyze(PoolByteArray bytes, int bit_format, unsigned int section_rva, unsigned int entry_rva, unsigned int image_base);
+        Dictionary analyze(PoolByteArray bytes, int bit_format, unsigned long long section_rva, unsigned long long entry_rva, unsigned long long image_base);
 
         void _init(); // our initializer called by Godot
 

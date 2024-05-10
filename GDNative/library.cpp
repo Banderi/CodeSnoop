@@ -8,6 +8,8 @@
 #include "RichTextLabel.hpp"
 #include "TextHistory"
 
+#pragma clang diagnostic ignored "-Wswitch"
+
 using namespace godot;
 
 HANDLE hJob;
@@ -25,6 +27,23 @@ std::mutex termination_mutex;
 
 /////////////
 
+const int tab32[32] = {
+        0,  9,  1, 10, 13, 21,  2, 29,
+        11, 14, 16, 18, 22, 25,  3, 30,
+        8, 12, 20, 28, 15, 17, 24,  7,
+        19, 27, 23,  6, 26,  5,  4, 31};
+int log2_32(uint32_t value)
+{
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    value |= value >> 8;
+    value |= value >> 16;
+    return tab32[(uint32_t)(value*0x07C4ACDD) >> 27];
+}
+
+/////////////
+
 // console/stdio history lines
 String to_str(int n) {
     return {std::to_string(n).c_str()};
@@ -39,7 +58,7 @@ void PrintErr(const char *err) {
     std::cerr << err << std::endl;
     ERR_PRINT(err);
 }
-void printOutput(char *buffer, DWORD bytesRead) {
+void printOutput(const char *buffer, DWORD bytesRead) {
     // Convert CRLF to LF
     std::string formatted = buffer;
     std::string::size_type pos = 0;
@@ -54,16 +73,16 @@ void printOutput(char *buffer, DWORD bytesRead) {
     std::cout.flush();
 
     // Extract and record linebreaks
-    int string_start = history.size();
+    int string_start = history.size(); //NOLINT
     std::lock_guard<std::mutex> guard(buffer_mutex);
     if (history_linebreaks.empty())
         history_linebreaks.push_back(0); // always have '0' as the first one
     pos = 0;
-    while ((pos = formatted.find("\n", pos)) != std::string::npos) {
+    while ((pos = formatted.find('\n', pos)) != std::string::npos) {
         pos += 1; // record the START of each line!
-        history_linebreaks.push_back(string_start + pos);
+        history_linebreaks.push_back(string_start + pos); //NOLINT
     }
-    history_lines = history_linebreaks.size();
+    history_lines = history_linebreaks.size(); //NOLINT
 
     // Push string into history
     history += formatted;
@@ -98,45 +117,45 @@ void clear_history() {
 int GDNShell::get_lines_count() {
     return history_lines;
 }
-String GDNShell::get_text(int _START_LINE, int _END_LINE) {
+String GDNShell::get_text(int start_line, int end_line) {
     std::lock_guard<std::mutex> guard(buffer_mutex);
-    const int LASTLINE = history_linebreaks.size();
+    const int last_line = history_linebreaks.size(); //NOLINT
 
-    if (history.size() == 0)
+    if (history.size() == 0) //NOLINT
         return "";
 
     // if negative, scroll to the bottom
-    if (_START_LINE < 0) {
-        _START_LINE += LASTLINE;
-        _END_LINE += LASTLINE;
+    if (start_line < 0) {
+        start_line += last_line;
+        end_line += last_line;
     }
 
     int s_start;
-    if (_START_LINE >= LASTLINE)
+    if (start_line >= last_line)
         return "";
     else {
-        _START_LINE = Math::clamp(_START_LINE, 0, LASTLINE - 1);
-        s_start = history_linebreaks.at(_START_LINE);
+        start_line = Math::clamp(start_line, 0, last_line - 1);
+        s_start = history_linebreaks.at(start_line);
     }
 
     int s_end;
-    if (_END_LINE >= LASTLINE)
-        s_end = history.size();
+    if (end_line >= last_line)
+        s_end = history.size(); //NOLINT
     else {
-        _END_LINE = Math::clamp(_END_LINE, 0, LASTLINE - 1);
-        s_end = history_linebreaks.at(_END_LINE);
+        end_line = Math::clamp(end_line, 0, last_line - 1);
+        s_end = history_linebreaks.at(end_line);
     }
 
     s_start = Math::clamp(s_start, 0, int(history.size() - 1));
     s_end = Math::clamp(s_end, 0, int(history.size() - 1));
 
-    if (_START_LINE != _END_LINE && s_start != s_end)
+    if (start_line != end_line && s_start != s_end)
         return history.substr(s_start, s_end - s_start).c_str();
     return "";
 }
 String GDNShell::get_all_text() {
     std::lock_guard<std::mutex> guard(buffer_mutex);
-    int history_size = history.size();
+    const int history_size = history.size(); //NOLINT
     if (history_size != history_last_fetched_pos) {
         int n = history_size - history_last_fetched_pos;
         std::string str = history.substr(history_last_fetched_pos, n);
@@ -167,7 +186,7 @@ int GDNShell::spawn(String path, bool hidden) {
             !CreatePipe(&hInputRead, &hInputWrite, &sa, 0))
         {
             PrintErr("Failed to create pipes.");
-            return GetLastError();
+            return (int)GetLastError();
         }
         simpleDebugPrint("GDNShell::spawn 2");
         si.dwFlags |= STARTF_USESTDHANDLES;
@@ -184,8 +203,7 @@ int GDNShell::spawn(String path, bool hidden) {
     if (!CreateProcess(nullptr, path.alloc_c_string(), nullptr, nullptr, TRUE, CREATE_SUSPENDED, nullptr, nullptr, &si, &pi))
     {
         PrintErr("Failed to create process.");
-        return GetLastError();
-        auto a = ERROR_INVALID_FUNCTION;
+        return (int)GetLastError();
     }
     simpleDebugPrint("GDNShell::spawn 3");
 
@@ -195,7 +213,7 @@ int GDNShell::spawn(String path, bool hidden) {
         PrintErr("Failed to assign child process to job object.");
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
-        return GetLastError();
+        return (int)GetLastError();
     }
     simpleDebugPrint("GDNShell::spawn 4");
 
@@ -316,7 +334,7 @@ Array GDNShell::disassemble(PoolByteArray bytes, int bitformat, unsigned int add
     return a;
 }
 
-// file analysis stuff
+// disassembly / decomposition
 struct dcmp {
     uint8_t *g_bytes_s;
     unsigned int g_num_bytes;
@@ -329,7 +347,28 @@ struct dcmp {
 bool decompile_bytes_from_rva(unsigned int rva) {
     // calculate byte offset
     unsigned int start_byte = rva - dcmp.g_section_base_rva;
-    int size_to_decompile = dcmp.g_num_bytes - start_byte;
+    int size_to_decompile = dcmp.g_num_bytes - start_byte; //NOLINT
+
+    // decompose!
+    unsigned int MAX_INSTR = size_to_decompile;
+    dcmp.g_decomposed_instructions = new _DInst[MAX_INSTR]; // declared on the heap because yes.
+    dcmp.g_decoded_instr_num = 0;
+    _CodeInfo ci;
+    ci.code = dcmp.g_bytes_s + start_byte;
+    ci.codeLen = size_to_decompile;
+    ci.codeOffset = rva;
+    ci.dt = dcmp.g_bit_format;
+    ci.features = DF_NONE;
+    _DecodeResult r = distorm_decompose(&ci, dcmp.g_decomposed_instructions, MAX_INSTR, &dcmp.g_decoded_instr_num);
+    if (r == DECRES_INPUTERR) {
+        delete[] dcmp.g_decomposed_instructions;
+        return false;
+    }
+    return true;
+}
+bool decompile_bytes_from_byte(unsigned int start_byte, unsigned int rva) {
+    // calculate byte offset
+    int size_to_decompile = dcmp.g_num_bytes - start_byte; //NOLINT
 
     // decompose!
     unsigned int MAX_INSTR = size_to_decompile;
@@ -359,7 +398,7 @@ unsigned int RVA_to_instruction_i(unsigned int rva) {
     }
     return -1;
 }
-void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned int i) {
+void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned int i) { //NOLINT
     Array calls;
     Dictionary fn_data;
     dict[rva] = fn_data;
@@ -386,6 +425,9 @@ void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned 
             dict[rva] = fn_data;
             return; // error decoding the machine code
         }
+
+        // determine accessed registers
+
         switch (cur->opcode) {
             case I_RET: { // end of function body
                 fn_data["calls"] = calls;
@@ -419,9 +461,7 @@ void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned 
                 break;
             }
             case I_CALL: {
-
                 Dictionary call_params;
-
                 int op_type1 = cur->ops[0].type;
 //                int op_type2 = cur->ops[1].type;
 //                int op_type3 = cur->ops[2].type;
@@ -435,7 +475,7 @@ void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned 
                     case O_DISP: // memory dereference with displacement only, instruction.disp.
                         jump_to = cur->disp - dcmp.g_image_base;
                         break;
-                    case O_REG: // dynamic function calls, class methods, callbacks, etc.
+                    case O_REG: // dynamic function calls, class methods, callbacks, etc. //NOLINT
                         jump_to = -1;
                         break;
                     default:
@@ -444,8 +484,7 @@ void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned 
                 }
                 call_params["address"] = cur->addr;
                 call_params["jump_to"] = jump_to;
-                bool jump_is_next_instruction = (jump_to == (cur->addr + cur->size));
-
+//                bool jump_is_next_instruction = (jump_to == (cur->addr + cur->size));
                 if (jump_to != -1 && !dict.has(jump_to)) {
                     unsigned int jump_i = RVA_to_instruction_i(jump_to);
                     if (jump_i == -1) {
@@ -459,7 +498,6 @@ void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned 
                 break;
             }
         }
-
         i++; // advance instruction
         if (i >= dcmp.g_decoded_instr_num)
             return;
@@ -483,6 +521,131 @@ Dictionary GDNShell::analyze(PoolByteArray bytes, int bit_format, unsigned long 
 
     // analyze...
     recursive_function_trace(results, entry_rva, RVA_to_instruction_i(entry_rva));
+    delete[] dcmp.g_decomposed_instructions;
+    return results;
+}
+
+// deeper function logic analysis
+long long registers[256];
+bool registers_set[256][3];
+int classmask_to_register(int class_mask) {
+    return log2_32(class_mask);
+}
+#include <map>
+Dictionary GDNShell::deeper_analysis(PoolByteArray bytes, int bit_format, unsigned long long fn_rva, unsigned long long image_base) {
+    dcmp.g_bytes_s = (uint8_t*)bytes.read().ptr();
+    dcmp.g_num_bytes = bytes.size();
+    dcmp.g_image_base = image_base;
+    dcmp.g_bit_format = (_DecodeType)bit_format;
+
+    // decompose!
+    Dictionary results;
+    if (!decompile_bytes_from_byte(0, fn_rva))
+        return results;
+
+//    for (int i = 0; i < R_DR7; i++) {
+//        registers_set[i][0] = false;
+//        registers_set[i][1] = false;
+//        registers_set[i][2] = false;
+//    }
+//    magic_stack.clear();
+
+    // first, analyze the jumps and the calls
+    _DInst *cur = nullptr;
+    std::map<unsigned long long, std::vector<unsigned int>> jumps;
+    std::vector<unsigned int> calls;
+    for (int i = 0; i < dcmp.g_decoded_instr_num; i++) {
+        cur = &dcmp.g_decomposed_instructions[i];
+        auto opcode = (_InstructionType)cur->opcode;
+        auto optype = (_OperandType)cur->ops[0].type;
+        auto opindex = (_RegisterType)cur->ops[0].index;
+        switch (opcode) {
+            case I_JA:
+            case I_JAE:
+            case I_JB:
+            case I_JBE:
+            case I_JCXZ:
+            case I_JECXZ:
+            case I_JG:
+            case I_JGE:
+            case I_JL:
+            case I_JLE:
+            case I_JMP:
+            case I_JMP_FAR:
+            case I_JNO:
+            case I_JNP:
+            case I_JNS:
+            case I_JNZ:
+            case I_JO:
+            case I_JP:
+            case I_JRCXZ:
+            case I_JS:
+            case I_JZ: {
+                auto jump_to = INSTRUCTION_GET_TARGET(cur);
+                unsigned long long rdi_rva = cur->addr + cur->size;
+                bool jump_is_next_instruction = (jump_to == rdi_rva);
+                if (jump_is_next_instruction) { // && optype != O_PC
+                    switch (optype) {
+                        case O_SMEM: {
+                            if (cur->ops[0].index == R_RIP)
+                                jumps[jump_to + cur->disp].push_back(i - 1);
+                            break;
+                        }
+                        case O_PTR: {
+                            auto seg = cur->imm.ptr.seg;
+                            auto off = cur->imm.ptr.off;
+                            break;
+                        }
+
+                    }
+                } else
+                    jumps[jump_to].push_back(i - 1);
+                break;
+            }
+            case I_CALL:
+                calls.push_back(i);
+                break;
+        }
+
+
+
+
+    }
+
+    // second, for every CALL, traverse the jump tree in regressive order to find the registers used
+    for (int i = 0; i < dcmp.g_decoded_instr_num; i++) {
+        cur = &dcmp.g_decomposed_instructions[i];
+
+
+//        if (cur->usedRegistersMask != 0) {
+//            auto f_opsize = FLAG_GET_OPSIZE(cur->flags);
+//            auto f_addrsize = FLAG_GET_ADDRSIZE(cur->flags);
+//            auto f_prefix = FLAG_GET_PREFIX(cur->flags);
+//            auto f_privileged = FLAG_GET_PRIVILEGED(cur->flags);
+//
+//
+//            switch (cur->opcode) {
+//                case I_PUSH:
+//
+//                    break;
+//                case I_POP:
+//                    break;
+//            }
+//
+//
+//
+//            for (auto reg_op : cur->ops) {
+//                if (reg_op.type == O_REG) {
+//                    auto reg_index = reg_op.index;
+//                    auto reg_size = reg_op.size;
+//
+//                    int a = 2;
+//                }
+//            }
+//        }
+    }
+
+    // cleanup
     delete[] dcmp.g_decomposed_instructions;
     return results;
 }
@@ -513,6 +676,7 @@ void GDNShell::_register_methods() {
 
     register_method("disassemble", &GDNShell::disassemble);
     register_method("analyze", &GDNShell::analyze);
+    register_method("deeper_analysis", &GDNShell::deeper_analysis);
 
 //    register_property<GDNShell, RichTextLabel>("console_node", &GDNShell::console_node, empty_node);
 //    register_property<GDNShell, String>("APP_NAME", &GDNShell::APP_NAME, "Console");
@@ -563,4 +727,3 @@ bool process_setup() {
 
     return true;
 }
-

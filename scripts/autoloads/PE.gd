@@ -1305,6 +1305,15 @@ var ANALYSIS = {
 	"functions": {},
 	"fn_rvas_by_section": {}
 }
+func get_fn_name(fn_rva):
+	if fn_rva in ANALYSIS.functions:
+		var fn_params = ANALYSIS.functions[fn_rva]
+		if "is_thunk" in fn_params && "symbol" in fn_params.calls[0]:
+			var redirect_params = fn_params.calls[0]
+			return ["=> " + redirect_params.symbol, redirect_params.import]
+		else:
+			return ["FUN_%08X" % [fn_rva]]
+	return ["???"]
 func analyze_fn_call_tree(fn_rva):
 	# read section bytes
 	var CLOCK = Stopwatch.start()
@@ -1319,7 +1328,7 @@ func analyze_fn_call_tree(fn_rva):
 	
 	# disassemble & analyze bytes
 	CLOCK = Stopwatch.start()
-	var results = GDN.MODULE.analyze(bytes, 2 if PE.is_PE32_64() else 1, section.RVA.value, fn_rva, get_image_base())
+	var results = GDN.MODULE.analyze(bytes, 2 if is_PE32_64() else 1, section.RVA.value, fn_rva, get_image_base())
 	var fcount = results.size()
 	ANALYSIS.fn_rvas_by_section[section_name] = []
 	for rva in results:

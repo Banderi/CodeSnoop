@@ -663,8 +663,9 @@ onready var ASM = $VSplitContainer/Main/Middle/Code/ASM/Disassembler
 onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/ASM/VSlider
 var focused_function_rva = null
 var selected_asm_rva = null
+#var prev_selected_asm_rva = null # TODO: stack / history
 func asm_panel_visible_lines():
-	return floor((ASM.rect_size.y) / (14 + ASM.get("custom_constants/vseparation")) - 4)
+	return floor((ASM.rect_size.y) / (14 + ASM.get("custom_constants/vseparation")) - 4) # 4 with titles visible, 2 without
 func update_asm_scrollbar_size():
 	if PE.file != null && focused_function_rva != null:
 		# remember the previous relative position/scroll percentage
@@ -709,9 +710,10 @@ func update_asm_view(scroll_to_line = false):
 		ASM.clear()
 		ASM.create_item()
 		ASM.set_column_min_width(0,12) # address
-		ASM.set_column_min_width(1,25) # hex bytes
-		ASM.set_column_min_width(2,25) # labels / symbols
-		ASM.set_column_min_width(3,80) # opcode (mnemonics) + operands
+		ASM.set_column_min_width(1,20) # hex bytes
+		ASM.set_column_min_width(2,18) # labels / symbols
+		ASM.set_column_min_width(3,35) # opcode (mnemonics) + operands
+		ASM.set_column_min_width(4,45) # calls, jumps
 		
 		var slider_scroll = -ASM_SLIDER.value
 		for line in num_lines:
@@ -729,10 +731,34 @@ func update_asm_view(scroll_to_line = false):
 			for b in range(0, asm_instr.hex.length(), 2):
 				hex_bytes += asm_instr.hex.substr(b, 2).to_upper() + " "
 			
+			# symbols / analysis data
+			var fn_params = PE.ANALYSIS.functions[focused_function_rva]
+			if instr_rva in PE.ANALYSIS.functions:
+				var fn_name = PE.get_fn_name(instr_rva)
+				tree_item.set_text(2, fn_name[0])
+				if fn_name.size() > 1:
+					tree_item.set_custom_color(2, Color(1,1,0,0.6))
+			for call_params in fn_params.calls:
+				if instr_rva == call_params.address:
+					tree_item.set_metadata(4, call_params)
+					var call_name = PE.get_fn_name(call_params.jump_to)
+					if call_name != []:
+						tree_item.set_text(4, call_name[0])
+						if call_name.size() > 1:
+							tree_item.set_custom_color(4, Color(1,1,0,0.6))
+#							var call_text = "%s::%s()" % [called_fn_params.import, called_fn_params.symbol]
+#							draw_multicolored_string(ASM,
+#							["%s" % [called_fn_params.import], "::", "%s" % [called_fn_params.symbol]],
+#							[Color(1,1,1,0.6), Color(1,1,1,0.6), Color(1,1,0,0.6)],
+#							rect.position + Vector2(200, 9))
+#						elif call_name[0] == "???":
+#							tree_item.set_custom_color(4, Color(1,1,1,0.3))
+					break
 			
-			tree_item.set_metadata(0, [PE.RVA_to_file_offset(instr_rva), PE.RVA_to_file_offset(instr_rva) + asm_instr.size, asm_instr.size, instr_rva])
+				
+			tree_item.set_metadata(0, [PE.RVA_to_file_offset(instr_rva), PE.RVA_to_file_offset(instr_rva) + asm_instr.size, asm_instr.size, instr_rva, focused_function_rva])
 			tree_item.set_metadata(1, hex_bytes)
-#			tree_item.set_metadata(1, symbols)
+			tree_item.set_metadata(2, fn_params)
 			tree_item.set_metadata(3, [asm_instr.mnemonic, asm_instr.operands])
 			if selected_asm_rva != null && instr_rva == selected_asm_rva:
 				tree_item.select(0)
@@ -749,7 +775,7 @@ func update_asm_view(scroll_to_line = false):
 			tree_item.set_text_align(0, TreeItem.ALIGN_RIGHT)
 			tree_item.set_cell_mode(1,TreeItem.CELL_MODE_CUSTOM)
 			tree_item.set_custom_draw(1, self, "_custom_asm_bytes_draw")
-			tree_item.set_text_align(2, TreeItem.ALIGN_RIGHT)
+			tree_item.set_text_align(2, TreeItem.ALIGN_CENTER)
 			tree_item.set_cell_mode(3,TreeItem.CELL_MODE_CUSTOM)
 			tree_item.set_custom_draw(3, self, "_custom_asm_opcodes_draw")
 func asm_scroll_to_address(rva):
@@ -796,6 +822,7 @@ func _on_Disassembler_item_activated():
 					rva += address[3] + address[2]
 			go_to_function(rva)
 func go_to_function(fn_rva, address_rva = null):
+	var _focused_function_rva = focused_function_rva
 	if fn_rva in PE.ANALYSIS.functions:
 		var func_info = PE.ANALYSIS.functions[fn_rva]
 		focused_function_rva = fn_rva
@@ -806,8 +833,9 @@ func go_to_function(fn_rva, address_rva = null):
 		else:
 			ASM_SLIDER.value = 0
 			update_asm_view()
+		
+		var file_offset = PE.RVA_to_file_offset(fn_rva)
 		if address_rva == null:
-			var file_offset = PE.RVA_to_file_offset(fn_rva)
 			hex_scroll_to(file_offset, file_offset + func_info.size)
 		
 		if address_rva == null:
@@ -837,6 +865,13 @@ func go_to_function(fn_rva, address_rva = null):
 						else:
 							fn_tree_item = section.get_children()
 		
+		# preform a deeper analysis on the function
+		if focused_function_rva != _focused_function_rva:
+#			prev_selected_asm_rva = focused_function_rva # TODO...
+			PE.file.seek(file_offset)
+			var buf = PE.file.get_buffer(PE.ANALYSIS.functions[focused_function_rva].size) # this assumes the .size is VALID!
+			var results = GDN.MODULE.deeper_analysis(buf, 2 if PE.is_PE32_64() else 1, fn_rva, PE.get_image_base())
+			pass
 		return true
 	else:
 		return false
@@ -929,6 +964,7 @@ func _ready():
 	ASM.set_column_title(1, "Bytes")
 	ASM.set_column_title(2, "Symbols")
 	ASM.set_column_title(3, "Opcodes")
+	ASM.set_column_title(4, "Jumps")
 	IMPORTS_TABLE.set_column_title(0, "Imports")
 	EXPORTS_TABLE.set_column_title(0, "Exports")
 	

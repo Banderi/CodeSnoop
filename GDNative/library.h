@@ -23,17 +23,25 @@ namespace godot {
 
         int spawn(String path, bool hidden = false);
         bool send_string(String string);
-//        int get_process_status();
-//        bool is_waiting_for_input();
         void kill();
 
         int get_lines_count();
-        String get_text(int _START_LINE, int _END_LINE);
+        String get_text(int start_line, int end_line);
         String get_all_text();
         void clear();
 
-        Array disassemble(PoolByteArray bytes, int bit_format, unsigned int address);
-        Dictionary analyze(PoolByteArray bytes, int bit_format, unsigned long long section_rva, unsigned long long entry_rva, unsigned long long image_base);
+        Array disassemble(PoolByteArray bytes,
+                          int bit_format,
+                          unsigned int address);
+        Dictionary analyze(PoolByteArray bytes,
+                           int bit_format,
+                           unsigned long long section_rva,
+                           unsigned long long entry_rva,
+                           unsigned long long image_base);
+        Dictionary deeper_analysis(PoolByteArray bytes,
+                                   int bit_format,
+                                   unsigned long long fn_rva,
+                                   unsigned long long image_base);
 
         void _init(); // our initializer called by Godot
 

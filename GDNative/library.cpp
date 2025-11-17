@@ -44,6 +44,10 @@ int log2_32(uint32_t value)
 
 /////////////
 
+String GDNShell::get_version() {
+    return "v0.1";
+}
+
 // console/stdio history lines
 String to_str(int n) {
     return {std::to_string(n).c_str()};
@@ -400,6 +404,7 @@ unsigned int RVA_to_instruction_i(unsigned int rva) {
 }
 void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned int i) { //NOLINT
     Array calls;
+    Array jumps;
     Dictionary fn_data;
     dict[rva] = fn_data;
     if (i == -1) {
@@ -415,6 +420,7 @@ void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned 
     // analyze!
     _DInst *cur = nullptr;
     unsigned int starting_i = i;
+    unsigned long long farthest_jump = rva;
     while (true)
     {
         cur = &dcmp.g_decomposed_instructions[i];
@@ -427,14 +433,15 @@ void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned 
         }
 
         // determine accessed registers
-
         switch (cur->opcode) {
             case I_RET: { // end of function body
                 fn_data["calls"] = calls;
                 fn_data["icount"] = i - starting_i + 1;
                 fn_data["size"] = cur->addr - rva + cur->size;
                 dict[rva] = fn_data;
-                return;
+
+                if (cur->addr >= farthest_jump) // ONLY return if we didn't detect a jump target past this instruction.
+                    return;
             }
             case I_JMP: {
                 if (i == starting_i) { // this is a JMP table thunk for Imports
@@ -457,6 +464,8 @@ void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned 
                     fn_data["size"] = cur->size;
                     dict[rva] = fn_data;
                     return;
+                } else {
+                    //
                 }
                 break;
             }
@@ -495,6 +504,19 @@ void recursive_function_trace(Dictionary dict, unsigned long long rva, unsigned 
                         recursive_function_trace(dict, jump_to, jump_i);
                 }
                 calls.push_back(call_params);
+                break;
+            }
+            default: {
+                if (META_GET_FC(cur->meta) == FC_CND_BRANCH) {
+                    unsigned long long jump_target = INSTRUCTION_GET_TARGET(cur);
+                    Dictionary jump_params;
+                    jump_params["jump_to"] = jump_target;
+                    jump_params["address"] = cur->addr;
+                    jumps.push_back(jump_params);
+                    fn_data["jumps"] = jumps;
+                    if (jump_target > farthest_jump)
+                        farthest_jump = jump_target;
+                }
                 break;
             }
         }
@@ -662,6 +684,7 @@ GDNShell::GDNShell() = default;
 GDNShell::~GDNShell() = default;
 void GDNShell::_register_methods() {
     register_method("_process", &GDNShell::_process);
+    register_method("get_version", &GDNShell::get_version);
 
     register_method("spawn", &GDNShell::spawn);
     register_method("send_string", &GDNShell::send_string);

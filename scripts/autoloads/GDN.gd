@@ -34,6 +34,7 @@ func _process(_delta):
 func GDN_INIT():
 	assert(MODULE != null)
 	Log.generic(null, "Loading GDNative...")
+	Log.generic(null, "GDNShell version: " + MODULE.get_version())
 	MODULE.connect("child_process_started", self, "_child_process_started")
 	MODULE.connect("child_process_stopped", self, "_child_process_stopped")
 

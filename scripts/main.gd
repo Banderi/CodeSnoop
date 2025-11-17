@@ -126,7 +126,7 @@ func PE_open(path):
 		add_to_recent(path)
 		
 		# go to entry point
-		go_to_function(PE.get_image_entrypoint_rva())
+		go_to_address(PE.get_image_entrypoint_rva())
 func _on_OpenDialog_file_selected(path):
 	PE_open(path)
 
@@ -390,7 +390,6 @@ func update_info_extra_panels():
 func _on_IATMode_toggled(_button_pressed):
 	fill_ImportExportEtcTables()
 func _on_Functions_cell_selected():
-	focused_function_rva = null
 	var selection = FUNCS_TABLE.get_selected()
 	var parent = selection.get_parent()
 	
@@ -398,9 +397,9 @@ func _on_Functions_cell_selected():
 	if metadata is Dictionary:
 		var parent_rva = parent.get_metadata(0)
 		if parent_rva in PE.ANALYSIS.functions:
-			go_to_function(parent_rva, metadata.address)
+			go_to_address(parent_rva, metadata.address)
 	elif metadata is int:
-		go_to_function(metadata)
+		go_to_address(metadata)
 func _on_Functions_item_activated():
 	var selection = FUNCS_TABLE.get_selected()
 	selection.collapsed = !selection.collapsed 
@@ -408,7 +407,7 @@ func _on_Functions_item_activated():
 	var metadata = selection.get_metadata(0)
 	if metadata is Dictionary:
 		if !("symbol" in metadata) && metadata.jump_to > 0:
-			go_to_function(metadata.jump_to)
+			go_to_address(metadata.jump_to)
 
 ##### CODING / MAIN PANELS
 var middle_height = 0
@@ -659,11 +658,37 @@ func _on_AsciiMode_toggled(button_pressed):
 	update_hex_scrollbar_size()
 
 # asm / disassembler
+var disas_fn_buf = null
+var disas_fn_asm = null
+var disas_fn_analysis = null
+func disas_fn(fn_rva):
+	var start_offset = PE.RVA_to_file_offset(fn_rva)
+	if start_offset == null:
+		return false
+	PE.file.seek(start_offset)
+	disas_fn_buf = PE.file.get_buffer(PE.ANALYSIS.functions[fn_rva].size) # this assumes the .size is VALID!
+	disas_fn_asm = GDN.disassemble(disas_fn_buf, fn_rva)
+	
+	disas_fn_analysis = {
+		"blocks": []
+	}
+	var last_block_start = 0
+	for i in disas_fn_asm:
+		
+		pass
+	
+	
+	
+	
+	
+	
+	
+	print("disassembled: %08X (%d bytes)" % [fn_rva, disas_fn_buf.size()])
+	return true
 onready var ASM = $VSplitContainer/Main/Middle/Code/ASM/Disassembler
 onready var ASM_SLIDER = $VSplitContainer/Main/Middle/Code/ASM/VSlider
 var focused_function_rva = null
 var selected_asm_rva = null
-#var prev_selected_asm_rva = null # TODO: stack / history
 func asm_panel_visible_lines():
 	return floor((ASM.rect_size.y) / (14 + ASM.get("custom_constants/vseparation")) - 4) # 4 with titles visible, 2 without
 func update_asm_scrollbar_size():
@@ -682,21 +707,10 @@ func update_asm_scrollbar_size():
 		ASM_SLIDER.editable = false
 func update_asm_view(scroll_to_line = false):
 	if PE.file != null && focused_function_rva != null:
-		
-		# for now, just display the first (entry point) function
-		var start_offset = PE.RVA_to_file_offset(focused_function_rva)
-		if start_offset == null:
-			return
-		
-		PE.file.seek(start_offset)
-		var buf = PE.file.get_buffer(PE.ANALYSIS.functions[focused_function_rva].size) # this assumes the .size is VALID!
-		var disas = GDN.disassemble(buf, focused_function_rva)
-		
-		
 		var num_lines = asm_panel_visible_lines()
 		if scroll_to_line && selected_asm_rva != null:
-			for i in disas.size():
-				var asm_instr = disas[i]
+			for i in disas_fn_asm.size():
+				var asm_instr = disas_fn_asm[i]
 				if asm_instr.offset == selected_asm_rva:
 					var first_visible_line = -ASM_SLIDER.value
 					var last_visible_line = first_visible_line + asm_panel_visible_lines() - 1
@@ -718,12 +732,12 @@ func update_asm_view(scroll_to_line = false):
 		var slider_scroll = -ASM_SLIDER.value
 		for line in num_lines:
 			var i = line + slider_scroll
-			if i < 0 || i > disas.size() - 1:
+			if i < 0 || i > disas_fn_asm.size() - 1:
 				continue # cut off at last disassembled/visible line reached
 
 			var tree_item = ASM.create_item()
 			
-			var asm_instr = disas[i]
+			var asm_instr = disas_fn_asm[i]
 			var instr_rva = asm_instr.offset
 			
 			# raw hex bytes
@@ -754,6 +768,17 @@ func update_asm_view(scroll_to_line = false):
 #						elif call_name[0] == "???":
 #							tree_item.set_custom_color(4, Color(1,1,1,0.3))
 					break
+			for jump_params in fn_params.get("jumps", []):
+				if instr_rva == jump_params.address:
+					tree_item.set_metadata(4, jump_params)
+					match ASM.get_column_title(0):
+						"VA":
+							tree_item.set_text(4, "%08X" % [PE.get_image_base() + jump_params.jump_to])
+						"RVA":
+							tree_item.set_text(4, "%08X" % [jump_params.jump_to])
+						"Raw":
+							tree_item.set_text(4, "%08X" % [PE.RVA_to_file_offset(jump_params.jump_to)])
+					tree_item.set_custom_color(4, Color(1,1,1,0.3))
 			
 				
 			tree_item.set_metadata(0, [PE.RVA_to_file_offset(instr_rva), PE.RVA_to_file_offset(instr_rva) + asm_instr.size, asm_instr.size, instr_rva, focused_function_rva])
@@ -778,6 +803,7 @@ func update_asm_view(scroll_to_line = false):
 			tree_item.set_text_align(2, TreeItem.ALIGN_CENTER)
 			tree_item.set_cell_mode(3,TreeItem.CELL_MODE_CUSTOM)
 			tree_item.set_custom_draw(3, self, "_custom_asm_opcodes_draw")
+	return true
 func asm_scroll_to_address(rva):
 	update_asm_view(true)
 func _on_VSlider_asm_scrolled():
@@ -800,6 +826,7 @@ func _on_Disassembler_item_selected():
 		return
 	hex_scroll_to(metadata[0], metadata[1])
 	selected_asm_rva = selection.get_metadata(0)[3]
+	asm_nav_update_current_rva(selected_asm_rva)
 func _on_Disassembler_item_activated():
 	var selection = ASM.get_selected()
 	var metadata = selection.get_metadata(3)
@@ -809,7 +836,7 @@ func _on_Disassembler_item_activated():
 	match mnemonics:
 		"CALL":
 			if operands.begins_with("0x"):
-				go_to_function(operands.hex_to_int())
+				go_to_address(operands.hex_to_int())
 		"JMP":
 			var s = operands.split(" ")
 			s = s[s.size()-1]
@@ -820,10 +847,24 @@ func _on_Disassembler_item_activated():
 					rva += l.hex_to_int()
 				elif l == "RIP" || l == "EIP":
 					rva += address[3] + address[2]
-			go_to_function(rva)
-func go_to_function(fn_rva, address_rva = null):
+			go_to_address(rva)
+		_:
+			var jump_params = selection.get_metadata(4)
+			if jump_params is Dictionary:
+				if jump_params.jump_to > 0:
+					go_to_address(focused_function_rva, jump_params.jump_to)
+	
+func go_to_address(fn_rva, address_rva = null):
 	var _focused_function_rva = focused_function_rva
 	if fn_rva in PE.ANALYSIS.functions:
+
+		# refresh disassembly
+		if fn_rva != focused_function_rva:
+			if !disas_fn(fn_rva):
+				return false
+		
+		asm_nav_record_jump([fn_rva, address_rva])
+		
 		var func_info = PE.ANALYSIS.functions[fn_rva]
 		focused_function_rva = fn_rva
 		selected_asm_rva = address_rva
@@ -871,11 +912,45 @@ func go_to_function(fn_rva, address_rva = null):
 			PE.file.seek(file_offset)
 			var buf = PE.file.get_buffer(PE.ANALYSIS.functions[focused_function_rva].size) # this assumes the .size is VALID!
 			var results = GDN.MODULE.deeper_analysis(buf, 2 if PE.is_PE32_64() else 1, fn_rva, PE.get_image_base())
-			pass
 		return true
 	else:
 		return false
-	
+var asm_nav = []
+var asm_nav_i = -1
+var asm_nav_is_navigating = false # hacky global scope var used so I don't have to chuck a new parameter inside go_to_address()
+func asm_nav_record_jump(rva_pair):
+	if asm_nav_is_navigating:
+		return false
+	if asm_nav.size() > 0:
+		if asm_nav[asm_nav_i] == rva_pair:
+			return false # same as last recorded pair, do not add a new one
+	if asm_nav.size() == asm_nav_i + 1:
+		asm_nav.push_back(rva_pair)
+	else:
+		asm_nav[asm_nav_i + 1] = rva_pair
+		asm_nav.resize(asm_nav_i + 2)
+	asm_nav_i += 1
+	return true
+func asm_nav_update_current_rva(rva):
+	if asm_nav_i > -1:
+		asm_nav[asm_nav_i][1] = rva
+func go_to_previous():
+	if asm_nav_i > 0:
+		asm_nav_is_navigating = true
+		asm_nav_i -= 1
+		var rva_pair = asm_nav[asm_nav_i]
+		go_to_address(rva_pair[0], rva_pair[1])
+		asm_nav_is_navigating = false
+func go_to_next():
+	if asm_nav.size() > asm_nav_i + 1:
+		asm_nav_is_navigating = true
+		asm_nav_i += 1
+		var rva_pair = asm_nav[asm_nav_i]
+		go_to_address(rva_pair[0], rva_pair[1])
+		asm_nav_is_navigating = false
+
+
+
 # text drawing related stuff
 onready var mono_font : Font = load("res://fonts/basis33.tres")
 func draw_multicolored_string(parent : Control, text_array : Array, colors_array : Array, position : Vector2):
@@ -1039,9 +1114,11 @@ func _input(_event):
 	if Input.is_action_just_pressed("go_to_address"):
 		_on_BtnAddr_pressed()
 	if Input.is_action_just_pressed("backspace"):
-		fill_ImportExportEtcTables()
-		update_info_extra_panels()
-		Log.generic(null,"reloaded!")
+		go_to_previous()
+#	if Input.is_action_just_pressed("reload_imports"):
+#		fill_ImportExportEtcTables()
+#		update_info_extra_panels()
+#		Log.generic(null,"reloaded!")
 
 func _on_focus_change_intercept(node):
 	if node != BTN_RECENT && node.get_parent() != BTN_RECENT_LIST:

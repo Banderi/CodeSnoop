@@ -1,0 +1,250 @@
+=cmd-param-changed,param="logging enabled",value="on"
+(gdb) 
+&"python import gdb; print(gdb.VERSION);\n"
+~"15.2\n"
+1^done
+(gdb) 
+2^done
+(gdb) 
+3^done
+(gdb) 
+4^done
+(gdb) 
+5^done
+(gdb) 
+6^done
+(gdb) 
+7^done
+(gdb) 
+8^done
+(gdb) 
+9^done
+(gdb) 
+10^done
+(gdb) 
+11^done
+(gdb) 
+12^done
+(gdb) 
+13^done,value="off"
+(gdb) 
+&"info pretty-printer\n"
+~"global pretty-printers:\n"
+~"  builtin\n"
+~"    mpx_bound128\n"
+14^done
+(gdb) 
+&"python import sys; sys.dont_write_bytecode = True; sys.path.insert(0, \"D:/JetBrains/Programs/CLion/bin/gdb/renderers\"); from default.printers import register_default_printers; register_default_printers(None); from libstdcxx.v6.printers import register_libstdcxx_printers; register_libstdcxx_printers(None); from default.libstdcxx_printers import patch_libstdcxx_printers_module; patch_libstdcxx_printers_module(); \n"
+15^done
+(gdb) 
+&"python sys.path.append(\"D:\\\\JetBrains\\\\Programs\\\\CLion\\\\bin\\\\qt\"); from default.gdb_qt_init import init_qt_support; init_qt_support(); \n"
+~"result={token=\"0\",dumpers=[{type=\"QVariant (QVariantMap)\",formats=\"17\"},{type=\"std____ndk1__array\",formats=\"16\"},{type=\"std____ndk1__complex\"},{type=\"std____ndk1__deque\"},{type=\"std____ndk1__list\"},{type=\"std____ndk1__set\"},{type=\"std____ndk1__multiset\"},{type=\"std____ndk1__map\",formats=\"17\"},{type=\"std____ndk1__multimap\",formats=\"17\"},{type=\"std____ndk1__map__iterator\"},{type=\"std____ndk1__map__const_iterator\"},{type=\"std____ndk1__set__iterator\"},{type=\"std____ndk1__set_const_iterator\"},{type=\"std____ndk1__stack\"},{type=\"std____ndk1__string\"},{type=\"std____ndk1__wstring\"},{type=\"std____ndk1__basic_string\"},{type=\"std____ndk1__shared_ptr\"},{type=\"std____ndk1__weak_ptr\"},{type=\"std____ndk1__unique_ptr\"},{type=\"std____ndk1__unordered_map\",formats=\"17\"},{type=\"std____ndk1__unordered_set\"},{type=\"std____ndk1__unordered_multiset\"},{type=\"std____ndk1__valarray\",formats=\"16\"},{type=\"std____ndk1__vector\",formats=\"16\"},{type=\"std____ndk1__once_flag\"},{type=\"boost__bimaps__bimap\"},{type=\"boost__optional\"},{type=\"boost__shared_ptr\"},{type=\"boost__container__list\"},{type=\"boost__container__vector\",formats=\"16\"},{type=\"boost__container__static_vector\",formats=\"16\"},{type=\"boost__container__small_vector\",formats=\"16\"},{type=\"boost__gregorian__date\"},{type=\"boost__posix_time__ptime\"},{type=\"boost__posix_time__time_duration\"},{type=\"boost__unordered__unordered_set\"},{type=\"boost__variant\"},{type=\"boost__container__devector\"},{type=\"Utils__Id\"},{type=\"Utils__Key\"},{type=\"Debugger__Internal__GdbMi\"},{type=\"Debugger__Internal__DisassemblerLine\"},{type=\"Debugger__Internal__WatchData\"},{type=\"Debugger__Internal__WatchItem\"},{type=\"Debugger__Internal__BreakpointModelId\"},{type=\"Debugger__Internal__ThreadId\"},{type=\"CPlusPlus__ByteArrayRef\"},{type=\"CPlusPlus__Identifier\"},{type=\"CPlusPlus__Symbol\"},{type=\"CPlusPlus__Class\"},{type=\"CPlusPlus__IntegerType\"},{type=\"CPlusPlus__FullySpecifiedType\"},{type=\"CPlusPlus__NamedType\"},{type=\"CPlusPlus__PointerType\"},{type=\"CPlusPlus__TemplateNameId\"},{type=\"CPlusPlus__QualifiedNameId\"},{type=\"CPlusPlus__Literal\"},{type=\"CPlusPlus__StringLiteral\"},{type=\"CPlusPlus__Internal__Value\"},{type=\"Utils__FilePath\"},{type=\"Utils__FileName\"},{type=\"Utils__ElfSection\"},{type=\"Utils__Port\"},{type=\"Utils__DictKey\"},{type=\"Utf8String\"},{type=\"CPlusPlus__Token\"},{type=\"CPlusPlus__Internal__PPToken\"},{type=\"ProString\"},{type=\"ProKey\"},{type=\"Core__GeneratedFile\"},{type=\"ProjectExplorer__ProjectNode\"},{type=\"CMakeProjectManager__Internal__CMakeProjectNode\"},{type=\"QmakeProjectManager__QmakePriFileNode\"},{type=\"QmakeProjectManager__QmakeProFileNode\"},{type=\"std__array\",formats=\"16\"},{type=\"std__complex\"},{type=\"std__once_flag\"},{type=\"std__unique_ptr\"},{type=\"std__forward_list\"},{type=\"std____1__array\",formats=\"16\"},{type=\"std____1__complex\"},{type=\"std____1__deque\"},{type=\"std____1__forward_list\"},{type=\"std____1__list\"},{type=\"std____1__set\"},{type=\"std____1__multiset\"},{type=\"std____1__map\",formats=\"17\"},{type=\"std____1__multimap\",formats=\"17\"},{type=\"std____1__map__iterator\"},{type=\"std____1__map__const_iterator\"},{type=\"std____1__set__iterator\"},{type=\"std____1__set_const_iterator\"},{type=\"std____1__stack\"},{type=\"std____1__string\"},{type=\"std____1__shared_ptr\"},{type=\"std____1__weak_ptr\"},{type=\"std____1__unique_ptr\"},{type=\"std____1__unordered_map\",formats=\"17\"},{type=\"std____1__unordered_multimap\"},{type=\"std____1__unordered_set\"},{type=\"std____1__unordered_multiset\"},{type=\"std____1__valarray\",formats=\"16\"},{type=\"std____1__vector\",formats=\"16\"},{type=\"std____1__once_flag\"},{type=\"std____1__variant\"},{type=\"std____1__optional\"},{type=\"std____1__tuple\"},{type=\"__m128\"},{type=\"__m256\"},{type=\"__m512\"},{type=\"__m128d\"},{type=\"__m256d\"},{type=\"__m512d\"},{type=\"__m128i\"},{type=\"__m256i\"},{type=\"__m512i\"},{type=\"gsl__span\"},{type=\"gsl__byte\"},{type=\"Eigen__Matrix\"},{type=\"NimStringDesc\"},{type=\"NimGenericSequence__\"},{type=\"TNimNode\"},{type=\"KDSoapValue1\"},{type=\"KDSoapValue\"},{type=\"WTF__String\"},{type=\"PyTypeObject\"},{type=\"_typeobject\"},{type=\"PyObject\"},{type=\"PyVarObject\"},{type=\"QtcDumperTest_FieldAccessByIndex\"},{type=\"QtcDumperTest_PointerArray\"},{type=\"QtcDumperTest_BufArray\"},{type=\"QtcDumperTest_List__NodeX\"},{type=\"QtcDumperTest_List\"},{type=\"QtcDumperTest_String\"},{type=\"cv__Size_\"},{type=\"cv__Mat\",formats=\"4\"},{type=\"QAtomicInt\"},{type=\"QBasicAtomicInt\"},{type=\"QAtomicPointer\"},{type=\"QByteArray\",editable=\"true\",formats=\"5, 6, 7, 8\"},{type=\"QBitArray\"},{type=\"QChar\"},{type=\"Qt__ItemDataRole\"},{type=\"QStandardItemData\"},{type=\"QStandardItem\"},{type=\"QDate\"},{type=\"QTime\"},{type=\"QTimeZone\"},{type=\"QDateTime\"},{type=\"QDir\"},{type=\"QEvent\"},{type=\"QKeyEvent\"},{type=\"QKeySequence\"},{type=\"QFile\"},{type=\"QFileInfo\"},{type=\"QFixed\"},{type=\"QFiniteStack\",formats=\"16\"},{type=\"QFlags\"},{type=\"QHash\",formats=\"17\"},{type=\"QVariantHash\"},{type=\"QHashNode\",formats=\"17\"},{type=\"QHash__const_iterator\"},{type=\"QHash__iterator\"},{type=\"QHostAddress\"},{type=\"QIPv6Address\"},{type=\"QList\",formats=\"18, 19\"},{type=\"QVariantList\"},{type=\"QImage\",formats=\"2, 4\"},{type=\"QLinkedList\"},{type=\"QLocale\"},{type=\"QMapNode\"},{type=\"QMap\",formats=\"17\"},{type=\"QMultiMap\",formats=\"17\"},{type=\"QVariantMap\",formats=\"17\"},{type=\"QMetaMethod\"},{type=\"QMetaEnum\"},{type=\"QMetaProperty\"},{type=\"QMetaClassInfo\"},{type=\"QMetaObject\"},{type=\"QPair_xxxx\"},{type=\"QProcEnvKey\"},{type=\"QPixmap\"},{type=\"QMargins\"},{type=\"QPoint\"},{type=\"QPointF\"},{type=\"QRect\"},{type=\"QRectF\"},{type=\"QRegExp\"},{type=\"QRegion\"},{type=\"QScopedPointer\"},{type=\"QSet\"},{type=\"QSharedData\"},{type=\"QSharedDataPointer\"},{type=\"QSize\"},{type=\"QSizeF\"},{type=\"QSizePolicy__Policy\"},{type=\"QSizePolicy\"},{type=\"QStack\",formats=\"16\"},{type=\"QPolygonF\"},{type=\"QPolygon\"},{type=\"QGraphicsPolygonItem\"},{type=\"QString\",editable=\"true\",formats=\"2, 4\"},{type=\"QSettingsKey\"},{type=\"QStaticStringData\"},{type=\"QTypedArrayData\"},{type=\"QStringData\"},{type=\"QAnyStringView\"},{type=\"QStringView\",formats=\"2, 4\"},{type=\"QHashedString\"},{type=\"QQmlRefCount\"},{type=\"QStringRef\"},{type=\"QStringList\"},{type=\"QTemporaryFile\"},{type=\"QTextCodec\"},{type=\"QTextCursor\"},{type=\"QTextDocument\"},{type=\"QUrl\",formats=\"2, 4\"},{type=\"QUuid\"},{type=\"QVariant\"},{type=\"QVector\",editable=\"true\",formats=\"16\"},{type=\"QVarLengthArray\"},{type=\"QSharedPointer\"},{type=\"QWeakPointer\"},{type=\"QPointer\"},{type=\"QXmlAttributes__Attribute\"},{type=\"QXmlAttributes\"},{type=\"QXmlStreamStringRef\"},{type=\"QXmlStreamAttribute\"},{type=\"QV4__Heap__Base\"},{type=\"QV4__Heap__String\"},{type=\"QV4__Object\"},{type=\"QV4__FunctionObject\"},{type=\"QV4__CompilationUnit\"},{type=\"QV4__CallContext\"},{type=\"QV4__ScriptFunction\"},{type=\"QV4__SimpleScriptFunction\"},{type=\"QV4__ExecutionContext\"},{type=\"QQmlSourceLocation\"},{type=\"QV4__String\"},{type=\"QV4__Identifier\"},{type=\"QV4__PropertyHash\"},{type=\"QV4__InternalClass__Transition\"},{type=\"QV4__InternalClassTransition\"},{type=\"QV4__SharedInternalClassData\"},{type=\"QV4__IdentifierTable\"},{type=\"QV4_Object\"},{type=\"QV4__Value\"},{type=\"QV__PropertyHashData\"},{type=\"QV__PropertyHash\"},{type=\"QV4__Scoped\"},{type=\"QV4__ScopedString\"},{type=\"QJSValue\"},{type=\"QQmlBinding\"},{type=\"QTJSC__JSValue\"},{type=\"QScriptValue\"},{type=\"QQmlAccessorProperties__Properties\"},{type=\"QJsonPrivate__qle_bitfield\"},{type=\"QJsonPrivate__qle_signedbitfield\"},{type=\"QJsonPrivate__q_littleendian\"},{type=\"QJsonValue\"},{type=\"QJsonArray\"},{type=\"QJsonObject\"},{type=\"QSqlResultPrivate\"},{type=\"QSqlField\"},{type=\"QLazilyAllocated\"},{type=\"qfloat16\"},{type=\"QCborArray\"},{type=\"QCborMap\"},{type=\"QCborValue\"},{type=\"QCborValue_proxy\"},{type=\"quint16_le\"},{type=\"quint32_le\"},{type=\"quint64_le\"},{type=\"quint16_be\"},{type=\"quint32_be\"},{type=\"quint64_be\"},{type=\"std__function\"},{type=\"std__deque\"},{type=\"std____debug__deque\"},{type=\"std__list\"},{type=\"std__list__QNX\"},{type=\"std____debug__list\"},{type=\"std____cxx11__list\"},{type=\"std____debug__forward_list\"},{type=\"std____cxx11__forward_list\"},{type=\"std__map\",formats=\"17\"},{type=\"std____debug__map\"},{type=\"std____debug__set\"},{type=\"std__multiset\"},{type=\"std____debug__multiset\"},{type=\"std____cxx1998__multiset\"},{type=\"std____cxx1998__map\"},{type=\"std__multimap\",formats=\"17\"},{type=\"std____debug__multimap\"},{type=\"std____cxx1998__multimap\"},{type=\"std___Rb_tree_iterator\"},{type=\"std___Rb_tree_const_iterator\"},{type=\"std__map__iterator\"},{type=\"__gnu_debug___Safe_iterator\"},{type=\"std__map__const_iterator\"},{type=\"std__set__iterator\"},{type=\"std__set__const_iterator\"},{type=\"std____cxx1998__set\"},{type=\"std___Tree_const_iterator\"},{type=\"std___Tree_iterator\"},{type=\"std__set\"},{type=\"std__set__QNX\"},{type=\"std__stack\"},{type=\"std____debug__stack\"},{type=\"std__string\",editable=\"true\",formats=\"5, 6, 7, 8\"},{type=\"std__basic_string_view\"},{type=\"std__string_view\"},{type=\"std__u16string_view\"},{type=\"std____weak_ptr\"},{type=\"std__weak_ptr\"},{type=\"std__shared_ptr\"},{type=\"std__pair\"},{type=\"std__tuple\"},{type=\"std__unordered_map\",formats=\"17\"},{type=\"std____debug__unordered_map\",formats=\"17\"},{type=\"std__unordered_multimap\",formats=\"17\"},{type=\"std____debug__unordered_multimap\",formats=\"17\"},{type=\"std__unordered_set\"},{type=\"std____debug__unordered_set\"},{type=\"std__unordered_multiset\"},{type=\"std____debug__unordered_multiset\"},{type=\"std__valarray\",formats=\"16\"},{type=\"std__variant\"},{type=\"std__vector\",editable=\"true\",formats=\"16\"},{type=\"std____debug__vector\",formats=\"16\"},{type=\"std__initializer_list\"},{type=\"string\",editable=\"true\"},{type=\"std__wstring\",editable=\"true\",formats=\"2, 4\"},{type=\"std__basic_string\"},{type=\"std____cxx11__basic_string\"},{type=\"std____cxx11__string\",editable=\"true\",formats=\"5, 6, 7, 8\"},{type=\"std____cxx11__wstring\",editable=\"true\",formats=\"2, 4\"},{type=\"wstring\",editable=\"true\"},{type=\"__gnu_cxx__hash_set\"},{type=\"uint8_t\"},{type=\"int8_t\"},{type=\"std__byte\"},{type=\"std__optional\"},{type=\"std__experimental__optional\"},],python=\"31100\"}\n"
+~"Qt support was enabled\n"
+16^done
+(gdb) 
+17^done
+(gdb) 
+&"python from default.commands import register_commands; register_commands();\n"
+18^done
+(gdb) 
+19^done
+(gdb) 
+&"No symbol table is loaded.  Use the \"file\" command.\n"
+20^done,bkpt={number="1",type="breakpoint",disp="keep",enabled="y",addr="<PENDING>",pending="E:/Godot/Projects/CodeSnoop/GDNative/dynzasm/disas.h:22",times="0",original-location="E:/Godot/Projects/CodeSnoop/GDNative/dynzasm/disas.h:22"}
+(gdb) 
+&"No symbol table is loaded.  Use the \"file\" command.\n"
+21^done,bkpt={number="2",type="breakpoint",disp="keep",enabled="y",addr="<PENDING>",pending="E:/Godot/Projects/CodeSnoop/GDNative/library.cpp:446",times="0",original-location="E:/Godot/Projects/CodeSnoop/GDNative/library.cpp:446"}
+(gdb) 
+22^done
+(gdb) 
+23^done
+(gdb) 
+&"unset env HOME\n"
+24^done
+(gdb) 
+&"info inferiors\n"
+~"  Num  Description       Connection           Executable        \n"
+~"* 1    <null>                                 E:\\Softwares\\Godot\\Godot.exe \n"
+25^done
+(gdb) 
+26^done,value="auto"
+(gdb) 
+~"The target architecture is set to \"auto\" (currently \"i386:x86-64\").\n"
+27^done
+(gdb) 
+28^done
+(gdb) 
+=thread-group-started,id="i1",pid="31004"
+=thread-created,id="1",group-id="i1"
+=thread-created,id="2",group-id="i1"
+~"[New Thread 31004.0xa8dc]\n"
+=thread-created,id="3",group-id="i1"
+~"[New Thread 31004.0x3f5c]\n"
+=thread-created,id="4",group-id="i1"
+~"[New Thread 31004.0x4fac]\n"
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\ntdll.dll",target-name="C:\\WINDOWS\\SYSTEM32\\ntdll.dll",host-name="C:\\WINDOWS\\SYSTEM32\\ntdll.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff46471000",to="0x00007fff4666754c"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\kernel32.dll",target-name="C:\\WINDOWS\\System32\\kernel32.dll",host-name="C:\\WINDOWS\\System32\\kernel32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff46261000",to="0x00007fff4631e314"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\KernelBase.dll",target-name="C:\\WINDOWS\\System32\\KernelBase.dll",host-name="C:\\WINDOWS\\System32\\KernelBase.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43cf1000",to="0x00007fff43fc195c"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\advapi32.dll",target-name="C:\\WINDOWS\\System32\\advapi32.dll",host-name="C:\\WINDOWS\\System32\\advapi32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff44d41000",to="0x00007fff44ded8f4"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\msvcrt.dll",target-name="C:\\WINDOWS\\System32\\msvcrt.dll",host-name="C:\\WINDOWS\\System32\\msvcrt.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff459c1000",to="0x00007fff45a5d4a8"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\sechost.dll",target-name="C:\\WINDOWS\\System32\\sechost.dll",host-name="C:\\WINDOWS\\System32\\sechost.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff461c1000",to="0x00007fff4625b464"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\rpcrt4.dll",target-name="C:\\WINDOWS\\System32\\rpcrt4.dll",host-name="C:\\WINDOWS\\System32\\rpcrt4.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff45bf1000",to="0x00007fff45d137bc"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\bcrypt.dll",target-name="C:\\WINDOWS\\System32\\bcrypt.dll",host-name="C:\\WINDOWS\\System32\\bcrypt.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff44231000",to="0x00007fff4425610c"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\avrt.dll",target-name="C:\\WINDOWS\\SYSTEM32\\avrt.dll",host-name="C:\\WINDOWS\\SYSTEM32\\avrt.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff3e121000",to="0x00007fff3e129028"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\gdi32.dll",target-name="C:\\WINDOWS\\System32\\gdi32.dll",host-name="C:\\WINDOWS\\System32\\gdi32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff46401000",to="0x00007fff4642a4a0"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\dinput8.dll",target-name="C:\\WINDOWS\\SYSTEM32\\dinput8.dll",host-name="C:\\WINDOWS\\SYSTEM32\\dinput8.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff3b5c1000",to="0x00007fff3b604460"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\dwmapi.dll",target-name="C:\\WINDOWS\\SYSTEM32\\dwmapi.dll",host-name="C:\\WINDOWS\\SYSTEM32\\dwmapi.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff41831000",to="0x00007fff4185e13c"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\win32u.dll",target-name="C:\\WINDOWS\\System32\\win32u.dll",host-name="C:\\WINDOWS\\System32\\win32u.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff44071000",to="0x00007fff44091014"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\user32.dll",target-name="C:\\WINDOWS\\System32\\user32.dll",host-name="C:\\WINDOWS\\System32\\user32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff45e61000",to="0x00007fff4600042c"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\gdi32full.dll",target-name="C:\\WINDOWS\\System32\\gdi32full.dll",host-name="C:\\WINDOWS\\System32\\gdi32full.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43b71000",to="0x00007fff43c7e484"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\combase.dll",target-name="C:\\WINDOWS\\System32\\combase.dll",host-name="C:\\WINDOWS\\System32\\combase.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff444f1000",to="0x00007fff4484481c"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\msvcp_win.dll",target-name="C:\\WINDOWS\\System32\\msvcp_win.dll",host-name="C:\\WINDOWS\\System32\\msvcp_win.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43fd1000",to="0x00007fff4406c7e4"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\ucrtbase.dll",target-name="C:\\WINDOWS\\System32\\ucrtbase.dll",host-name="C:\\WINDOWS\\System32\\ucrtbase.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff440a1000",to="0x00007fff4419faf8"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\imm32.dll",target-name="C:\\WINDOWS\\System32\\imm32.dll",host-name="C:\\WINDOWS\\System32\\imm32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff44b81000",to="0x00007fff44baf0d8"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\ole32.dll",target-name="C:\\WINDOWS\\System32\\ole32.dll",host-name="C:\\WINDOWS\\System32\\ole32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff45a61000",to="0x00007fff45b89158"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\IPHLPAPI.DLL",target-name="C:\\WINDOWS\\SYSTEM32\\IPHLPAPI.DLL",host-name="C:\\WINDOWS\\SYSTEM32\\IPHLPAPI.DLL",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff42f01000",to="0x00007fff42f3a164"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\shell32.dll",target-name="C:\\WINDOWS\\System32\\shell32.dll",host-name="C:\\WINDOWS\\System32\\shell32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff44df1000",to="0x00007fff455340ec"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\opengl32.dll",target-name="C:\\WINDOWS\\SYSTEM32\\opengl32.dll",host-name="C:\\WINDOWS\\SYSTEM32\\opengl32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff0c311000",to="0x00007fff0c434210"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\shlwapi.dll",target-name="C:\\WINDOWS\\System32\\shlwapi.dll",host-name="C:\\WINDOWS\\System32\\shlwapi.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff46091000",to="0x00007fff460e472c"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\glu32.dll",target-name="C:\\WINDOWS\\SYSTEM32\\glu32.dll",host-name="C:\\WINDOWS\\SYSTEM32\\glu32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff0c871000",to="0x00007fff0c89b0c0"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\ws2_32.dll",target-name="C:\\WINDOWS\\System32\\ws2_32.dll",host-name="C:\\WINDOWS\\System32\\ws2_32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff46381000",to="0x00007fff463ea150"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\winmm.dll",target-name="C:\\WINDOWS\\SYSTEM32\\winmm.dll",host-name="C:\\WINDOWS\\SYSTEM32\\winmm.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff36a91000",to="0x00007fff36ab61ec"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\wsock32.dll",target-name="C:\\WINDOWS\\SYSTEM32\\wsock32.dll",host-name="C:\\WINDOWS\\SYSTEM32\\wsock32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff24371000",to="0x00007fff2437801c"}]
+29^running
+*running,thread-id="all"
+(gdb) 
+=thread-created,id="5",group-id="i1"
+~"[New Thread 31004.0x740]\n"
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\InputHost.dll",target-name="C:\\WINDOWS\\SYSTEM32\\InputHost.dll",host-name="C:\\WINDOWS\\SYSTEM32\\InputHost.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff2d0d1000",to="0x00007fff2d221470"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\SHCore.dll",target-name="C:\\WINDOWS\\System32\\SHCore.dll",host-name="C:\\WINDOWS\\System32\\SHCore.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff44bb1000",to="0x00007fff44c5c36c"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\CoreMessaging.dll",target-name="C:\\WINDOWS\\SYSTEM32\\CoreMessaging.dll",host-name="C:\\WINDOWS\\SYSTEM32\\CoreMessaging.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff41061000",to="0x00007fff41151f14"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\oleaut32.dll",target-name="C:\\WINDOWS\\System32\\oleaut32.dll",host-name="C:\\WINDOWS\\System32\\oleaut32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff460f1000",to="0x00007fff461bc98c"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\WinTypes.dll",target-name="C:\\WINDOWS\\SYSTEM32\\WinTypes.dll",host-name="C:\\WINDOWS\\SYSTEM32\\WinTypes.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff40621000",to="0x00007fff40773ba0"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\propsys.dll",target-name="C:\\WINDOWS\\SYSTEM32\\propsys.dll",host-name="C:\\WINDOWS\\SYSTEM32\\propsys.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff3f6c1000",to="0x00007fff3f7b5b4c"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\CoreUIComponents.dll",target-name="C:\\WINDOWS\\SYSTEM32\\CoreUIComponents.dll",host-name="C:\\WINDOWS\\SYSTEM32\\CoreUIComponents.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff40d01000",to="0x00007fff4105d634"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\bcryptprimitives.dll",target-name="C:\\WINDOWS\\System32\\bcryptprimitives.dll",host-name="C:\\WINDOWS\\System32\\bcryptprimitives.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff441a1000",to="0x00007fff44221498"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\ntmarta.dll",target-name="C:\\WINDOWS\\SYSTEM32\\ntmarta.dll",host-name="C:\\WINDOWS\\SYSTEM32\\ntmarta.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff42c51000",to="0x00007fff42c82200"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",target-name="C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",host-name="C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff41a11000",to="0x00007fff41a2108c"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",target-name="C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",host-name="C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00000000001a1000",to="0x00000000001b108c"}]
+=library-unloaded,id="C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",target-name="C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",host-name="C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",thread-group="i1"
+=thread-created,id="6",group-id="i1"
+~"[New Thread 31004.0x7e18]\n"
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\Wintab32.dll",target-name="C:\\WINDOWS\\SYSTEM32\\Wintab32.dll",host-name="C:\\WINDOWS\\SYSTEM32\\Wintab32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff191b1000",to="0x00007fff191e9614"}]
+=thread-created,id="7",group-id="i1"
+~"[New Thread 31004.0x7c14]\n"
+=library-loaded,id="C:\\WINDOWS\\system32\\uxtheme.dll",target-name="C:\\WINDOWS\\system32\\uxtheme.dll",host-name="C:\\WINDOWS\\system32\\uxtheme.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff41541000",to="0x00007fff415dd1c8"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\clbcatq.dll",target-name="C:\\WINDOWS\\System32\\clbcatq.dll",host-name="C:\\WINDOWS\\System32\\clbcatq.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff45d21000",to="0x00007fff45dc8bbc"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\Speech\\Common\\sapi.dll",target-name="C:\\WINDOWS\\System32\\Speech\\Common\\sapi.dll",host-name="C:\\WINDOWS\\System32\\Speech\\Common\\sapi.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007ffee7971000",to="0x00007ffee7af536c"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\wintrust.dll",target-name="C:\\WINDOWS\\System32\\wintrust.dll",host-name="C:\\WINDOWS\\System32\\wintrust.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43c81000",to="0x00007fff43ce8504"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\msacm32.dll",target-name="C:\\WINDOWS\\SYSTEM32\\msacm32.dll",host-name="C:\\WINDOWS\\SYSTEM32\\msacm32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff19cc1000",to="0x00007fff19cdd0d4"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\msdmo.dll",target-name="C:\\WINDOWS\\SYSTEM32\\msdmo.dll",host-name="C:\\WINDOWS\\SYSTEM32\\msdmo.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff214e1000",to="0x00007fff214ea028"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\crypt32.dll",target-name="C:\\WINDOWS\\System32\\crypt32.dll",host-name="C:\\WINDOWS\\System32\\crypt32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff442b1000",to="0x00007fff44405f58"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",target-name="C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",host-name="C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff15d71000",to="0x00007fff15d95254"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",target-name="C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",host-name="C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00000000025f1000",to="0x0000000002615254"}]
+=library-unloaded,id="C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",target-name="C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",host-name="C:\\WINDOWS\\SYSTEM32\\winmmbase.dll",thread-group="i1"
+=library-loaded,id="C:\\WINDOWS\\System32\\msasn1.dll",target-name="C:\\WINDOWS\\System32\\msasn1.dll",host-name="C:\\WINDOWS\\System32\\msasn1.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43681000",to="0x00007fff43691018"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\MMDevAPI.dll",target-name="C:\\WINDOWS\\System32\\MMDevAPI.dll",host-name="C:\\WINDOWS\\System32\\MMDevAPI.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff3a321000",to="0x00007fff3a3a4d58"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\devobj.dll",target-name="C:\\WINDOWS\\System32\\devobj.dll",host-name="C:\\WINDOWS\\System32\\devobj.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43841000",to="0x00007fff4386b148"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\cfgmgr32.dll",target-name="C:\\WINDOWS\\System32\\cfgmgr32.dll",host-name="C:\\WINDOWS\\System32\\cfgmgr32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff44261000",to="0x00007fff442ad2ac"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\msctf.dll",target-name="C:\\WINDOWS\\System32\\msctf.dll",host-name="C:\\WINDOWS\\System32\\msctf.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff44851000",to="0x00007fff44963cdc"}]
+=library-loaded,id="C:\\Windows\\System32\\AppXDeploymentClient.dll",target-name="C:\\Windows\\System32\\AppXDeploymentClient.dll",host-name="C:\\Windows\\System32\\AppXDeploymentClient.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff3d401000",to="0x00007fff3d4f8e74"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_0afec3f2050014a0\\nvoglv64.dll",target-name="C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_0afec3f2050014a0\\nvoglv64.dll",host-name="C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_0afec3f2050014a0\\nvoglv64.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007ffeda231000",to="0x00007ffedc817524"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\setupapi.dll",target-name="C:\\WINDOWS\\System32\\setupapi.dll",host-name="C:\\WINDOWS\\System32\\setupapi.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff45551000",to="0x00007fff459b7838"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\wtsapi32.dll",target-name="C:\\WINDOWS\\SYSTEM32\\wtsapi32.dll",host-name="C:\\WINDOWS\\SYSTEM32\\wtsapi32.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff3f821000",to="0x00007fff3f83309c"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\version.dll",target-name="C:\\WINDOWS\\SYSTEM32\\version.dll",host-name="C:\\WINDOWS\\SYSTEM32\\version.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff3e511000",to="0x00007fff3e51901c"}]
+=thread-created,id="8",group-id="i1"
+~"[New Thread 31004.0x91f8]\n"
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\cryptnet.dll",target-name="C:\\WINDOWS\\SYSTEM32\\cryptnet.dll",host-name="C:\\WINDOWS\\SYSTEM32\\cryptnet.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff38261000",to="0x00007fff38290124"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\cryptbase.dll",target-name="C:\\WINDOWS\\SYSTEM32\\cryptbase.dll",host-name="C:\\WINDOWS\\SYSTEM32\\cryptbase.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43381000",to="0x00007fff4338b038"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\wldp.dll",target-name="C:\\WINDOWS\\SYSTEM32\\wldp.dll",host-name="C:\\WINDOWS\\SYSTEM32\\wldp.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43411000",to="0x00007fff4343f4a8"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\drvstore.dll",target-name="C:\\WINDOWS\\SYSTEM32\\drvstore.dll",host-name="C:\\WINDOWS\\SYSTEM32\\drvstore.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff38111000",to="0x00007fff382579f8"}]
+=thread-created,id="9",group-id="i1"
+~"[New Thread 31004.0xa730]\n"
+=thread-created,id="10",group-id="i1"
+~"[New Thread 31004.0x630c]\n"
+~"[Thread 31004.0x91f8 exited with code 0]\n"
+=thread-exited,id="8",group-id="i1"
+~"[Thread 31004.0xa730 exited with code 0]\n"
+=thread-exited,id="9",group-id="i1"
+~"[Thread 31004.0x630c exited with code 0]\n"
+=thread-exited,id="10",group-id="i1"
+=thread-created,id="11",group-id="i1"
+~"[New Thread 31004.0x8314]\n"
+=thread-created,id="12",group-id="i1"
+~"[New Thread 31004.0x7cbc]\n"
+=library-loaded,id="C:\\WINDOWS\\System32\\imagehlp.dll",target-name="C:\\WINDOWS\\System32\\imagehlp.dll",host-name="C:\\WINDOWS\\System32\\imagehlp.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff444c1000",to="0x00007fff444dc6dc"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\cryptsp.dll",target-name="C:\\WINDOWS\\System32\\cryptsp.dll",host-name="C:\\WINDOWS\\System32\\cryptsp.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43451000",to="0x00007fff4346713c"}]
+=library-loaded,id="C:\\WINDOWS\\system32\\rsaenh.dll",target-name="C:\\WINDOWS\\system32\\rsaenh.dll",host-name="C:\\WINDOWS\\system32\\rsaenh.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff42b31000",to="0x00007fff42b6309c"}]
+=library-loaded,id="C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_0afec3f2050014a0\\nvgpucomp64.dll",target-name="C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_0afec3f2050014a0\\nvgpucomp64.dll",host-name="C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_0afec3f2050014a0\\nvgpucomp64.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007ffee5811000",to="0x00007ffee77fd898"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\windows.storage.dll",target-name="C:\\WINDOWS\\SYSTEM32\\windows.storage.dll",host-name="C:\\WINDOWS\\SYSTEM32\\windows.storage.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff41c11000",to="0x00007fff423a1284"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\DXCore.dll",target-name="C:\\WINDOWS\\SYSTEM32\\DXCore.dll",host-name="C:\\WINDOWS\\SYSTEM32\\DXCore.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff3eec1000",to="0x00007fff3eefa288"}]
+=thread-created,id="13",group-id="i1"
+~"[New Thread 31004.0xb5d0]\n"
+=library-loaded,id="C:\\WINDOWS\\System32\\psapi.dll",target-name="C:\\WINDOWS\\System32\\psapi.dll",host-name="C:\\WINDOWS\\System32\\psapi.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff444e1000",to="0x00007fff444e7018"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\dbghelp.dll",target-name="C:\\WINDOWS\\SYSTEM32\\dbghelp.dll",host-name="C:\\WINDOWS\\SYSTEM32\\dbghelp.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff37701000",to="0x00007fff378e3ce0"}]
+=library-unloaded,id="C:\\WINDOWS\\System32\\psapi.dll",target-name="C:\\WINDOWS\\System32\\psapi.dll",host-name="C:\\WINDOWS\\System32\\psapi.dll",thread-group="i1"
+=library-unloaded,id="C:\\WINDOWS\\SYSTEM32\\dbghelp.dll",target-name="C:\\WINDOWS\\SYSTEM32\\dbghelp.dll",host-name="C:\\WINDOWS\\SYSTEM32\\dbghelp.dll",thread-group="i1"
+=thread-created,id="14",group-id="i1"
+~"[New Thread 31004.0x7c70]\n"
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\powrprof.dll",target-name="C:\\WINDOWS\\SYSTEM32\\powrprof.dll",host-name="C:\\WINDOWS\\SYSTEM32\\powrprof.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff439e1000",to="0x00007fff43a2a224"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\umpdc.dll",target-name="C:\\WINDOWS\\SYSTEM32\\umpdc.dll",host-name="C:\\WINDOWS\\SYSTEM32\\umpdc.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff439c1000",to="0x00007fff439d104c"}]
+=thread-created,id="15",group-id="i1"
+~"[New Thread 31004.0x4dcc]\n"
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\winsta.dll",target-name="C:\\WINDOWS\\SYSTEM32\\winsta.dll",host-name="C:\\WINDOWS\\SYSTEM32\\winsta.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff43951000",to="0x00007fff439b3014"}]
+=thread-created,id="16",group-id="i1"
+~"[New Thread 31004.0xaf50]\n"
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\XInput1_4.dll",target-name="C:\\WINDOWS\\SYSTEM32\\XInput1_4.dll",host-name="C:\\WINDOWS\\SYSTEM32\\XInput1_4.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff01c11000",to="0x00007fff01c20050"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\hid.dll",target-name="C:\\WINDOWS\\SYSTEM32\\hid.dll",host-name="C:\\WINDOWS\\SYSTEM32\\hid.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff423b1000",to="0x00007fff423bc034"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\AudioSes.dll",target-name="C:\\WINDOWS\\SYSTEM32\\AudioSes.dll",host-name="C:\\WINDOWS\\SYSTEM32\\AudioSes.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff3a811000",to="0x00007fff3a991104"}]
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\ResourcePolicyClient.dll",target-name="C:\\WINDOWS\\SYSTEM32\\ResourcePolicyClient.dll",host-name="C:\\WINDOWS\\SYSTEM32\\ResourcePolicyClient.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff41621000",to="0x00007fff41633214"}]
+=thread-created,id="17",group-id="i1"
+~"[New Thread 31004.0x7318]\n"
+=library-loaded,id="C:\\WINDOWS\\SYSTEM32\\TextInputFramework.dll",target-name="C:\\WINDOWS\\SYSTEM32\\TextInputFramework.dll",host-name="C:\\WINDOWS\\SYSTEM32\\TextInputFramework.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff2d231000",to="0x00007fff2d328228"}]
+=library-loaded,id="C:\\WINDOWS\\system32\\oleacc.dll",target-name="C:\\WINDOWS\\system32\\oleacc.dll",host-name="C:\\WINDOWS\\system32\\oleacc.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007fff186e1000",to="0x00007fff18745bac"}]
+=library-loaded,id="E:\\Godot\\Projects\\CodeSnoop\\libGDN.dll",target-name="E:\\Godot\\Projects\\CodeSnoop\\libGDN.dll",host-name="E:\\Godot\\Projects\\CodeSnoop\\libGDN.dll",symbols-loaded="0",thread-group="i1",ranges=[{from="0x00007ffea9de1000",to="0x00007ffeaa0ba674"}]
+=breakpoint-modified,bkpt={number="2",type="breakpoint",disp="keep",enabled="y",addr="0x00007ffea9de9e66",func="recursive_function_trace(godot::Dictionary, unsigned long long, unsigned int)",file="E:/Godot/Projects/CodeSnoop/GDNative/library.cpp",fullname="E:\\Godot\\Projects\\CodeSnoop\\GDNative\\library.cpp",line="446",thread-groups=["i1"],times="0",original-location="E:/Godot/Projects/CodeSnoop/GDNative/library.cpp:446"}
+=thread-created,id="18",group-id="i1"
+~"[New Thread 31004.0xa474]\n"
+~"\nThread "
+~"18 received signal SIGINT, Interrupt.\n"
+~"[Switching to Thread 31004.0xa474]\n"
+~"0x00007fff43db157f in TlsGetValue () from C:\\WINDOWS\\System32\\KernelBase.dll\n"
+*stopped,reason="signal-received",signal-name="SIGINT",signal-meaning="Interrupt",frame={addr="0x00007fff43db157f",func="TlsGetValue",args=[],from="C:\\WINDOWS\\System32\\KernelBase.dll",arch="i386:x86-64"},thread-id="18",stopped-threads="all"
+(gdb) 
+30^done
+(gdb) 
+31^running
+*running,thread-id="all"
+(gdb) 
+~"[Thread 31004.0xa474 exited with code 0]\n"
+=thread-exited,id="18",group-id="i1"
+=thread-created,id="19",group-id="i1"
+~"[New Thread 31004.0x68e8]\n"
+~"\nThread "
+~"19 received signal SIGINT, Interrupt.\n"
+~"[Switching to Thread 31004.0x68e8]\n"
+~"0x00007fff43db157f in TlsGetValue () from C:\\WINDOWS\\System32\\KernelBase.dll\n"
+*stopped,reason="signal-received",signal-name="SIGINT",signal-meaning="Interrupt",frame={addr="0x00007fff43db157f",func="TlsGetValue",args=[],from="C:\\WINDOWS\\System32\\KernelBase.dll",arch="i386:x86-64"},thread-id="19",stopped-threads="all"
+(gdb) 
+&"kill\n"
+~"Kill the program being debugged? (y or n) [answered Y; input not from terminal]\n"
+=thread-exited,id="1",group-id="i1"
+=thread-exited,id="2",group-id="i1"
+=thread-exited,id="3",group-id="i1"
+=thread-exited,id="4",group-id="i1"
+=thread-exited,id="5",group-id="i1"
+=thread-exited,id="6",group-id="i1"
+=thread-exited,id="7",group-id="i1"
+=thread-exited,id="11",group-id="i1"
+=thread-exited,id="12",group-id="i1"
+=thread-exited,id="13",group-id="i1"
+=thread-exited,id="14",group-id="i1"
+=thread-exited,id="15",group-id="i1"
+=thread-exited,id="16",group-id="i1"
+=thread-exited,id="17",group-id="i1"
+=thread-exited,id="19",group-id="i1"
+=thread-group-exited,id="i1"
+~"[Inferior 1 (process 31004) killed]\n"
+32^done
+(gdb) 
+33^exit

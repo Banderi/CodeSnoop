@@ -21,6 +21,8 @@ namespace godot {
         GDNShell();
         ~GDNShell();
 
+        String get_version();
+
         int spawn(String path, bool hidden = false);
         bool send_string(String string);
         void kill();
